@@ -8,7 +8,12 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.net.Uri
+import android.provider.Settings
+import android.widget.Toast
+import com.couchsubs.tv.OverlayService
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.IBinder
@@ -215,7 +220,8 @@ class TranslationService : Service() {
         val free = MlKitTranslator(cache(MlKitTranslator.ENGINE_ID), glossary).also { freeTranslator = it }
         val translator = onlineTranslator(free) ?: free
         val subtitleServer = SubtitleServer().also { server = it }
-        subtitleServer.sendsToTv = settings.target == SubtitleTarget.TV
+        // Tek TV uygulaması: motor TV'nin kendisinde çalışıyorsa altyazı hep TV'ye (aynı cihazdaki katmana) gider.
+        subtitleServer.sendsToTv = settings.target == SubtitleTarget.TV || isTvDevice()
         subtitleServer.onClientsChanged = { count ->
             val before = LiveState.status.value.connectedTvs
             LiveState.update { it.copy(connectedTvs = count) }
@@ -233,9 +239,10 @@ class TranslationService : Service() {
             extraAreas = settings.extraAreas.active()
         }
         try {
-            subtitleServer.start()
+            val port = subtitleServer.start()
             subtitleServer.sendStyle(settings.style)
             liveServer = subtitleServer
+            if (isTvDevice()) startTvOverlay(port)
         } catch (error: Exception) {
             Log.e(TAG, "SSE server", error)
             LiveState.update { it.copy(error = getString(R.string.error_port)) }
@@ -450,8 +457,38 @@ class TranslationService : Service() {
         EngineChoice.CLAUDE -> "Claude"
     }
 
+    /** Uygulama bir Android TV'de mi çalışıyor (IkarosExe fork'u: tek TV uygulaması). */
+    private fun isTvDevice(): Boolean =
+        packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
+
+    /**
+     * Altyazıyı bu TV'nin HDMI görüntüsünün üstündeki şeffaf katmanda açar (tv-android'in katman modu). Katman, aynı
+     * cihazdaki altyazı sunucusuna bağlanır. İzin yoksa izin ekranı açılmaya çalışılır; TV'de o ekran yoksa izin ADB ile
+     * verilir: adb shell appops set com.couchsubs.mobile SYSTEM_ALERT_WINDOW allow
+     */
+    private fun startTvOverlay(port: Int) {
+        val serverPort = if (port > 0) port else SubtitleServer.DEFAULT_PORT
+        val start = Runnable {
+            if (Settings.canDrawOverlays(this)) {
+                OverlayService.start(this, "{\"server\":\"http://127.0.0.1:$serverPort\"}")
+                return@Runnable
+            }
+            Toast.makeText(this, R.string.overlay_permission_toast, Toast.LENGTH_LONG).show()
+            try {
+                startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            } catch (error: RuntimeException) {
+                Log.w(TAG, "Overlay permission screen not available", error)
+            }
+        }
+        android.os.Handler(mainLooper).post(start)
+    }
+
     /** Kurulan parçaları kapatır; onDestroy'dan ve hizmet kurulum bitmeden durdurulduysa kurulum iş parçacığından çağrılır. */
     private fun releaseParts() = synchronized(lifecycle) {
+        if (isTvDevice()) {
+            try { OverlayService.stop(this) } catch (error: RuntimeException) { Log.w(TAG, "Overlay stop", error) }
+        }
         PlayedGame.stop()
         styleListener?.let(settings::removeListener)
         styleListener = null

@@ -122,6 +122,7 @@ android {
     sourceSets.main.assets.srcDirs += layout.buildDirectory.dir('generated/couchsubs-tv')
     // Android TV ve LG paketleri: son GitHub sürümünden (tvReleasePackages).
     sourceSets.main.assets.srcDirs += layout.buildDirectory.dir('generated/couchsubs-tv-release')
+    sourceSets.main.assets.srcDirs += layout.buildDirectory.dir('generated/couchsubs-tvpage')
     testOptions { unitTests.returnDefaultValues = true }
     // BouncyCastle ve jsch jar'ları aynı OSGi dosyalarını taşır (uygulamada kullanılmaz).
     packaging { resources { excludes += ['/META-INF/{AL2.0,LGPL2.1}', 'META-INF/versions/*/OSGI-INF/MANIFEST.MF'] } }
@@ -135,6 +136,13 @@ tasks.register('copyCouchSubsAssets', Copy) {
 tasks.register('copyCouchSubsPacks', Copy) {
     into layout.buildDirectory.dir('generated/couchsubs-packs')
     from("$repoRoot/core/Sources/CouchSubsCore/Resources") { include 'packs/*.json.gz' }
+}
+// Tek TV uygulaması (IkarosExe fork'u, 2026-11-15): TV'de altyazıyı çizen ortak sayfa (tv-android'in copyTvAssets'i ile
+// aynı dosyalar). Motor TV'de çalışınca com.couchsubs.tv.OverlayService bu sayfayı HDMI görüntüsünün üstünde açar.
+tasks.register('copyTvPageAssets', Copy) {
+    into layout.buildDirectory.dir('generated/couchsubs-tvpage/tvpage')
+    from("$repoRoot/tv-webos") { include 'app.js', 'i18n.js', 'config.js', 'index.html', 'style.css', 'icon.png', 'largeIcon.png' }
+    from("$repoRoot/tv-android") { include 'platform.js' }
 }
 // Samsung TV paketi (.wgt): scripts/package-tizen.sh'nin yaptığının aynısı (ortak dosyalar tv-webos'tan, Tizen'e
 // özgüler tv-tizen'den; index.html'e Samsung'un webapis.js'i eklenir, panel simgesi panel-icon.png olur).
@@ -223,7 +231,7 @@ tasks.register('tvReleasePackages') {
         }
     }
 }
-preBuild.dependsOn 'copyCouchSubsAssets', 'copyCouchSubsPacks', 'samsungTvPackage', 'tvReleasePackages'
+preBuild.dependsOn 'copyCouchSubsAssets', 'copyCouchSubsPacks', 'samsungTvPackage', 'tvReleasePackages', 'copyTvPageAssets'
 
 // CI'da chiaki-ng yamaları masaüstü derlemeleri gibi uygulanır (scripts/patch-chiaki.sh): -Pcouchsubs.patchChiaki=true
 if ((findProperty('couchsubs.patchChiaki') ?: 'false').toString().toBoolean()) {

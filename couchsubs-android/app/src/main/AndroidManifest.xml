@@ -12,6 +12,14 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Tek TV uygulaması (IkarosExe fork'u, 2026-11-15): motor TV'de çalışınca altyazı TV'nin kendi HDMI görüntüsünün
+         üstündeki şeffaf katmanda gösterilir (tv-android/OverlayService'ten alındı). -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- Hem telefonda hem TV'de kurulabilsin: dokunmatik ekran ve leanback şart değil. -->
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <uses-feature android:name="android.software.live_tv" android:required="false" />
     <!-- Reklam yok: Firebase ve Meta kütüphanelerinin eklediği reklam kimliği izni çıkarılır. -->
     <uses-permission android:name="com.google.android.gms.permission.AD_ID" tools:node="remove" />
     <uses-permission android:name="android.permission.ACCESS_ADSERVICES_AD_ID" tools:node="remove" />
@@ -22,6 +30,7 @@
     <application
         android:name=".CouchSubsApp"
         android:allowBackup="false"
+        android:banner="@drawable/tv_banner"
         android:icon="@mipmap/icon"
         android:label="CouchSubs"
         android:largeHeap="true"
@@ -54,6 +63,7 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
         <!-- Altyazı bu telefonun ekranında: yatay, büyük yazı. -->
@@ -65,5 +75,13 @@
             android:name=".service.TranslationService"
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
+        <service
+            android:name="com.couchsubs.tv.OverlayService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Subtitle overlay on top of the TV's own HDMI input" />
+        </service>
     </application>
 </manifest>

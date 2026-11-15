@@ -374,4 +374,8 @@
     <string name="settings_test_subtitle">Test on TV</string>
     <string name="settings_test_needs_start">Start translation first; the test subtitle shows once the TV app connects to the phone.</string>
     <string name="test_subtitle_text">This is a test subtitle. Can you see it on top of the game?</string>
+    <!-- Single TV app (engine and overlay on the same TV; IkarosExe fork, 2026-11-15). -->
+    <string name="overlay_running">Showing subtitles over the TV\'s HDMI picture</string>
+    <string name="overlay_choose_input">Switch the TV to the PS5\'s input (HDMI %1$d) with the remote. Subtitles will appear on top.</string>
+    <string name="overlay_permission_toast">Subtitles over the game need the \"Display over other apps\" permission.</string>
 </resources>

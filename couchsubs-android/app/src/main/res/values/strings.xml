@@ -382,4 +382,8 @@
     <string name="settings_test_subtitle">TV\'de test et</string>
     <string name="settings_test_needs_start">Deneme altyazısı için önce çeviriyi başlatın; TV uygulaması telefona bağlanınca yazı görünür.</string>
     <string name="test_subtitle_text">Bu bir deneme altyazısı. Oyunun üstünde görüyor musunuz?</string>
+    <!-- Tek TV uygulaması (motor ve katman aynı TV'de; IkarosExe fork'u, 2026-11-15). -->
+    <string name="overlay_running">Altyazı TV\'nin HDMI görüntüsünün üstünde gösteriliyor</string>
+    <string name="overlay_choose_input">TV\'yi kumandayla PS5\'in girişine (HDMI %1$d) geçir. Altyazı üstte görünecek.</string>
+    <string name="overlay_permission_toast">Altyazının oyunun üstünde görünmesi için \"Diğer uygulamaların üzerinde göster\" izni gerekiyor.</string>
 </resources>
