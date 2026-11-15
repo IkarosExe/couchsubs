@@ -28,7 +28,7 @@ jobs:
         working-directory: couchsubs-android
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: gradle testDebugUnitTest -Pcouchsubs.skipNative=true -Pcouchsubs.requireTvPackages=true --no-daemon
+        run: gradle testDebugUnitTest -Pcouchsubs.skipNative=true -Pcouchsubs.requireTvPackages=true -Pcouchsubs.abis=armeabi-v7a --no-daemon
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -65,9 +65,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          gradle assembleDebug -Pcouchsubs.patchChiaki=true -Pcouchsubs.requireTvPackages=true --no-daemon
+          gradle assembleDebug -Pcouchsubs.patchChiaki=true -Pcouchsubs.requireTvPackages=true -Pcouchsubs.abis=armeabi-v7a --no-daemon
           mkdir -p ../dist
-          cp app/build/outputs/apk/debug/*.apk ../dist/CouchSubs-android-debug.apk
+          cp app/build/outputs/apk/debug/*.apk ../dist/CouchSubs-android-armeabi-v7a-debug.apk
       - uses: actions/upload-artifact@v4
         with:
           name: couchsubs-android-app
