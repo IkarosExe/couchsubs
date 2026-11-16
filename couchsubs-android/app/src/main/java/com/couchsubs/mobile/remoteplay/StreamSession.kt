@@ -212,6 +212,11 @@ class StreamSession(
     private val height: Int = 1080,
     /** PS5 bu hesap için giriş şifresi isterse gönderilecek 4 hane (Ayarlar'da kayıtlıysa). */
     private val loginPasscode: String? = null,
+    /**
+     * TV (IkarosExe fork'u): donanım çözücü bir GPU dokusuna çözer, kare GPU'da parlaklığa çevrilip okunur
+     * ([GlFrameBridge]). GPU kurulamazsa eski yol (çözücü doğrudan YUV ImageReader'a) kullanılır.
+     */
+    private val gpuReadback: Boolean = false,
 ) : FrameSource {
     private companion object {
         const val TAG = "CouchSubsSession"
@@ -234,6 +239,7 @@ class StreamSession(
     private var native = 0L
     private var nativeGeneration = 0
     private var reader: ImageReader? = null
+    private var bridge: GlFrameBridge? = null
 
     override fun start() {
         val current = bump(true)
@@ -327,7 +333,27 @@ class StreamSession(
 
     private fun openSession(current: Int) {
         if (!isCurrent(current) || native != 0L) return
-        val imageReader = ImageReader.newInstance(width, height, ImageFormat.YUV_420_888, 3)
+        // TV'de GPU yolu: RGBA okuyucuya GPU çizer (ilk bayt parlaklık); kurulamazsa YUV okuyucuya çözücü yazar.
+        var gpu: GlFrameBridge? = null
+        var gpuReader: ImageReader? = null
+        if (gpuReadback && android.os.Build.VERSION.SDK_INT >= 29) {
+            try {
+                val rgba = ImageReader.newInstance(width, height, android.graphics.PixelFormat.RGBA_8888, 3,
+                    android.hardware.HardwareBuffer.USAGE_CPU_READ_OFTEN or android.hardware.HardwareBuffer.USAGE_GPU_COLOR_OUTPUT)
+                try {
+                    gpu = GlFrameBridge(width, height, rgba.surface)
+                    gpuReader = rgba
+                } catch (error: Throwable) {
+                    rgba.close()
+                    throw error
+                }
+            } catch (error: Throwable) {
+                Log.w(TAG, "GPU okuma kurulamadı; işlemci yolu kullanılıyor", error)
+                Backend.breadcrumb("PS5: GPU okuma kurulamadı (${error.javaClass.simpleName}); işlemci yolu")
+                gpu = null
+            }
+        }
+        val imageReader = gpuReader ?: ImageReader.newInstance(width, height, ImageFormat.YUV_420_888, 3)
         var described = false
         imageReader.setOnImageAvailableListener({ source ->
             // IllegalStateException (en çok kare) ya da UnsupportedOperationException (çözücünün kare biçimi okuyucuyla
@@ -355,11 +381,15 @@ class StreamSession(
         val outcome = NativeOutcome()
         val listener = NativeSessionListener { type, reason, text -> handle(type, reason, text, current) }
         val c = console
-        val swapDecoder = watchdog.swapDecoder
-        if (swapDecoder) Backend.breadcrumb("PS5: önceki oturumda görüntü gelmedi; öbür çözücü türüyle deneniyor")
-        val ptr = NativeBridge.sessionStart(c.host, c.registKey, c.morning, accountId, width, height, imageReader.surface,
+        // TV'de yerel kod yazılım çözücüyü önceler; GPU yolunda donanım çözücü istenir (karolu kareyi GPU okur): seçim
+        // tersine çevrilir. Görüntü gelmezse bekçi yine öbür türü dener.
+        val swapDecoder = watchdog.swapDecoder != (gpu != null)
+        if (watchdog.swapDecoder) Backend.breadcrumb("PS5: önceki oturumda görüntü gelmedi; öbür çözücü türüyle deneniyor")
+        val decoderSurface = gpu?.inputSurface ?: imageReader.surface
+        val ptr = NativeBridge.sessionStart(c.host, c.registKey, c.morning, accountId, width, height, decoderSurface,
             swapDecoder, listener, outcome)
         if (ptr == 0L) {
+            gpu?.release()
             imageReader.close()
             Log.w(TAG, "PS5 oturumu başlatılamadı (${c.host}): ${outcome.errors}")
             scheduleReconnect(current, SessionState.Disconnected(DisconnectKind.OTHER, outcome.errorLines.lastOrNull() ?: "session could not be started"))
@@ -368,6 +398,7 @@ class StreamSession(
         native = ptr
         nativeGeneration = current
         reader = imageReader
+        bridge = gpu
     }
 
     /** Oturumun ilk karesinin gerçek arabellek biçimi çökme raporuna yazılır (üreticiye özel biçimler okunamayabilir). */
@@ -391,6 +422,9 @@ class StreamSession(
         if (ptr == 0L) return
         native = 0L
         NativeBridge.sessionStop(ptr)
+        // Çözücü durduktan sonra GPU köprüsü bırakılır (çözücü artık dokuya yazmaz).
+        bridge?.release()
+        bridge = null
         // Okuyucu kare iş parçacığında kapatılır: kuyruktan kapatılırsa o an okunan karenin belleği elden gider ve
         // düzlem okunurken süreç SIGSEGV ile çöker. dispose()'taki quitSafely bu iletiyi önce işler.
         reader?.let { r -> if (!Handler(imageThread.looper).post { r.close() }) r.close() }

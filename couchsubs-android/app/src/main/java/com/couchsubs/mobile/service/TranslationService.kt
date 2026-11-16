@@ -372,7 +372,9 @@ class TranslationService : Service() {
                 // altyazıyı saniyelerce geciktiriyordu. 720p yükü ~2,25 kat azaltır, altyazı yine okunur.
                 width = if (isTvDevice()) 1280 else 1920,
                 height = if (isTvDevice()) 720 else 1080,
-                loginPasscode = settings.loginPasscode)
+                loginPasscode = settings.loginPasscode,
+                // TV'de donanım çözücü + GPU okuma: işlemci görüntü çözmekten kurtulur (bkz. GlFrameBridge).
+                gpuReadback = isTvDevice())
         synchronized(lifecycle) {
             // Kurulum sürerken durdurulduysa (onDestroy çalıştı) açılan bağlantı başlatılmaz.
             if (destroyed) {
