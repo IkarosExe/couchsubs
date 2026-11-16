@@ -104,7 +104,16 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     composable(Routes.MAIN) {
-                        MainScreen(
+                        // IcarusTranslate: TV'de kendi arayüzümüz.
+                        if (packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)) IcarusTvApp(
+                            status = status,
+                            onStart = ::startTranslation,
+                            onStop = { TranslationService.stop(this@MainActivity) },
+                            onPsn = { navigation.navigate(Routes.PSN) },
+                            onPairing = { pairing(navigation) },
+                            onPacks = { navigation.navigate(Routes.PACKS) },
+                            onHistory = { navigation.navigate(Routes.HISTORY) },
+                        ) else MainScreen(
                             status = status,
                             onStart = ::startTranslation,
                             onStop = { TranslationService.stop(this@MainActivity) },

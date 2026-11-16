@@ -11,8 +11,27 @@ import java.util.Comparator;
 import java.util.List;
 
 /** TV'nin HDMI girişleri; uygulama içi mod ve katman modu ortak kullanır. */
-final class HdmiInputs {
+public final class HdmiInputs {
     private HdmiInputs() {}
+
+    /**
+     * IkarosExe (IcarusTranslate): "Oyuna dön". [port] 0 ise bağlı tek giriş, o da yoksa 1. Geçilemezse false
+     * (kullanıcı girişi kumandadan seçer).
+     */
+    public static boolean open(Context context, int port) {
+        int target = port > 0 ? port : consolePort(context);
+        if (target <= 0) target = 1;
+        String id = idForPort(context, target);
+        if (id == null) return false;
+        try {
+            context.startActivity(new android.content.Intent(android.content.Intent.ACTION_VIEW,
+                    android.media.tv.TvContract.buildChannelUriForPassthroughInput(id))
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK));
+            return true;
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
 
     /**
      * TV'nin HDMI girişleri, port numarasına göre sıralı. Girişin numarası sıradaki yeridir.
