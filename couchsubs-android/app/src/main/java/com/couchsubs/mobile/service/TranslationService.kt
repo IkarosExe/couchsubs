@@ -470,7 +470,14 @@ class TranslationService : Service() {
         val serverPort = if (port > 0) port else SubtitleServer.DEFAULT_PORT
         val start = Runnable {
             if (Settings.canDrawOverlays(this)) {
-                OverlayService.start(this, "{\"server\":\"http://127.0.0.1:$serverPort\"}")
+                Log.i(TAG, "TV katmanı açılıyor (127.0.0.1:$serverPort)")
+                Toast.makeText(this, R.string.overlay_starting_toast, Toast.LENGTH_SHORT).show()
+                try {
+                    OverlayService.start(this, "{\"server\":\"http://127.0.0.1:$serverPort\"}")
+                } catch (error: RuntimeException) {
+                    Log.e(TAG, "TV katmanı açılamadı", error)
+                    Toast.makeText(this, getString(R.string.overlay_failed_toast, error.javaClass.simpleName), Toast.LENGTH_LONG).show()
+                }
                 return@Runnable
             }
             Toast.makeText(this, R.string.overlay_permission_toast, Toast.LENGTH_LONG).show()

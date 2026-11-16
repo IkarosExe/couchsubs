@@ -397,4 +397,6 @@
     <string name="target_this_tv_body">Çeviri başlayınca TV, PS5\'in girişine geçer ve altyazı oyunun üstünde görünür. Ağda başka TV aramaya gerek yok.</string>
     <string name="main_this_tv_on">Bu TV ✓</string>
     <string name="main_this_tv_waiting">Bu TV</string>
+    <string name="overlay_starting_toast">Altyazı katmanı açılıyor…</string>
+    <string name="overlay_failed_toast">Altyazı katmanı açılamadı (%1$s)</string>
 </resources>

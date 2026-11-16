@@ -389,4 +389,6 @@
     <string name="target_this_tv_body">When translation starts, the TV switches to the PS5\'s input and subtitles appear over the game. No need to look for other TVs.</string>
     <string name="main_this_tv_on">This TV ✓</string>
     <string name="main_this_tv_waiting">This TV</string>
+    <string name="overlay_starting_toast">Opening the subtitle overlay…</string>
+    <string name="overlay_failed_toast">Couldn\'t open the subtitle overlay (%1$s)</string>
 </resources>
