@@ -46,6 +46,11 @@ class DiagServer(private val summary: () -> String, private val onForm: ((Map<St
                 val header = input.readLine() ?: break
                 if (header.isEmpty()) break
                 if (header.startsWith("content-length:", ignoreCase = true)) length = header.substringAfter(':').trim().toIntOrNull() ?: 0
+                // Windows PowerShell 5 POST'ta "Expect: 100-continue" gönderip gövdeyi bekletiyor.
+                if (header.startsWith("expect:", ignoreCase = true) && header.contains("100-continue", ignoreCase = true)) {
+                    socket.getOutputStream().write("HTTP/1.1 100 Continue\r\n\r\n".toByteArray(Charsets.US_ASCII))
+                    socket.getOutputStream().flush()
+                }
             }
             // POST: ayar (ör. PowerShell'den DeepL anahtarı). Gövde "ad=değer&..." ya da yalnız "ad=değer".
             val text = if (request.startsWith("POST") && onForm != null) {
@@ -58,8 +63,10 @@ class DiagServer(private val summary: () -> String, private val onForm: ((Map<St
                     val i = part.indexOf('=')
                     if (i <= 0) null else java.net.URLDecoder.decode(part.substring(0, i), "UTF-8") to
                         java.net.URLDecoder.decode(part.substring(i + 1), "UTF-8")
-                }.toMap()
-                onForm.invoke(form) + "\n"
+                }.toMap().toMutableMap()
+                // Gövde "ad=değer" biçiminde değilse içindeki DeepL anahtarı biçimi aranır.
+                if ("deepl" !in form) Regex("[0-9a-fA-F]{8}-[0-9a-fA-F-]{27,}(:fx)?").find(body)?.let { form["deepl"] = it.value }
+                onForm.invoke(form) + " (gelen gövde ${body.length} harf)\n"
             } else buildString {
                 append("CouchSubs TV tanı\n")
                 append(summary()).append("\n\n")
