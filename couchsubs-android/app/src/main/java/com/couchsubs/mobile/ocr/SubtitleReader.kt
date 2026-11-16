@@ -29,6 +29,11 @@ class SubtitleReader(
     /** Son okumanın yolu ve OCR'a giden görüntünün boyutu (ölçümler için). */
     @Volatile var lastMode = ""
     private var triedBand = false
+    private var npuDoubt = false
+    private var npuReads = 0
+    /** Satır okuyucunun ortalama harf güveni bundan düşükse okuma ML Kit'e bırakılır. */
+    private val NPU_MIN_CONFIDENCE = 0.80
+    private val COMPARE_EVERY = 10
     @Volatile var lastWidth = 0
     @Volatile var lastHeight = 0
     /** Bu boydan alçak şerit 2 kat büyütülür (piksel; 1080p'de altyazı şeridi ~50-60 px, bundan alçağı küçük yazıdır). */
@@ -72,6 +77,7 @@ class SubtitleReader(
     /** Bölgeyi okur (bloklar; okuma iş parçacığında çağrılır). Satır kutuları bölgeye oranladır. */
     fun read(pixels: RegionPixels): Reading {
         triedBand = false
+        npuDoubt = false
         if (cropToText) {
             val band = TextBand.find(pixels.nv21, pixels.width, pixels.height)
             if (band != null) {
@@ -79,6 +85,36 @@ class SubtitleReader(
                 // dedirtip soluk yazılı satırların hiç gösterilmemesine yol açıyordu. Bölgenin tamamı okunur.
                 if (band.width > 0) {
                     triedBand = true
+                    // Önce yapay zekâ çipindeki satır okuyucu (hazırsa); emin değilse ML Kit okur.
+                    NpuRecognizer.active?.let { npu ->
+                        val lines = TextBand.lines(pixels.nv21, pixels.width, pixels.height, band)
+                        if (lines.isNotEmpty()) {
+                            val result = try { npu.read(pixels.nv21, pixels.width, pixels.height, lines) } catch (error: Exception) {
+                                android.util.Log.w("CouchSubsNpu", "okuma", error); null
+                            }
+                            if (result != null && result.reading.lines.isNotEmpty() && result.confidence >= NPU_MIN_CONFIDENCE) {
+                                lastMode = "NPU ${npu.pathName}"
+                                lastWidth = NpuRecognizer.W
+                                lastHeight = lines.size
+                                lastAreaPercent = (100L * band.width * band.height / (pixels.width.toLong() * pixels.height)).toInt()
+                                // Arada bir ML Kit de okur: iki okuyucunun yazısı ölçümlere yan yana yazılır.
+                                if (++npuReads % COMPARE_EVERY == 0) {
+                                    try {
+                                        val kit = recognize(TextBand.crop(pixels.nv21, pixels.width, band), band.width, band.height,
+                                            band, pixels.width, pixels.height)
+                                        com.couchsubs.mobile.service.Measure.compare(
+                                            result.reading.lines.joinToString(" / ") { it.text },
+                                            kit.lines.joinToString(" / ") { it.text }, result.confidence)
+                                        lastMode = "NPU ${npu.pathName}"
+                                    } catch (_: Exception) {}
+                                }
+                                return result.reading
+                            }
+                            npuDoubt = true
+                            if (result != null) com.couchsubs.mobile.service.Measure.compare(
+                                result.reading.lines.joinToString(" / ") { it.text }, null, result.confidence)
+                        }
+                    }
                     lastAreaPercent = (100L * band.width * band.height / (pixels.width.toLong() * pixels.height)).toInt()
                     // Alçak şerit (küçük yazı, tek satır) 2 kat büyütülerek okunur. Geniş ve yeterince yüksek şerit
                     // FULL_READ_MAX_WIDTH'e küçültülür: ML Kit'in süresi enle artıyor (1348 px şerit ~1100 ms, 960 px
@@ -120,7 +156,7 @@ class SubtitleReader(
     /** [band] verildiyse görüntü bölgenin o şerididir; kutular bölgenin tamamına göre hesaplanır. */
     private fun recognize(nv21: ByteArray, width: Int, height: Int, band: Band?, regionWidth: Int, regionHeight: Int,
                           scale: Double = 1.0): Reading {
-        lastMode = when {
+        lastMode = (if (npuDoubt) "NPU emin değil → " else "") + when {
             band == null -> if (triedBand) "şerit boş → tam bölge" else "tam bölge"
             scale > 1.0 -> "şerit büyütülmüş"
             scale < 1.0 -> "şerit küçültülmüş"

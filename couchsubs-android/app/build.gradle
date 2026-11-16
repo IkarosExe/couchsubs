@@ -260,6 +260,8 @@ dependencies {
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0'
     // Cihaz üstü yazı tanıma (Latin modeli uygulamayla gelir) ve ücretsiz çeviri (EN→TR modeli ilk kullanımda iner).
     implementation 'com.google.mlkit:text-recognition:16.0.1'
+    // IkarosExe fork'u: PaddleOCR satır okuyucusu TFLite ile, NNAPI üzerinden TV'nin yapay zekâ çipinde (MediaTek MDLA).
+    implementation 'org.tensorflow:tensorflow-lite:2.16.1'
     implementation 'com.google.mlkit:translate:17.0.3'
     implementation 'androidx.navigation:navigation-compose:2.8.5'
     implementation 'androidx.compose.material:material-icons-core'

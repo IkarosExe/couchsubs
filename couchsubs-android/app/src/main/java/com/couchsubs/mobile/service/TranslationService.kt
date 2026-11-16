@@ -324,6 +324,10 @@ class TranslationService : Service() {
             packLookup = { text -> if (packTitles != null && settings.packsEnabled) PackLookup.match(library, text) else null }
         }
         background.scheduleWithFixedDelay({ linePool.flush() }, LinePool.FLUSH_INTERVAL_MS, LinePool.FLUSH_INTERVAL_MS, TimeUnit.MILLISECONDS)
+        // TV: yapay zekâ çipindeki satır okuyucu arka planda hazırlanıp ölçülür; hazır olana kadar ML Kit okur.
+        if (isTvDevice()) Thread({
+            try { com.couchsubs.mobile.ocr.NpuRecognizer.prepare(this) } catch (error: Throwable) { Log.w(TAG, "NPU", error) }
+        }, "CouchSubs NPU").start()
         // Ücretsiz modelin ilk indirilmesi (yaklaşık 30 MB); oyun paketleri beklemeden çalışır.
         background.execute {
             try {

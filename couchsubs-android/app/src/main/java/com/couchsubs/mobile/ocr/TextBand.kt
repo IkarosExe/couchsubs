@@ -23,6 +23,8 @@ object TextBand {
     private const val MIN_H = 40
     private const val MIN_W = 96
     private const val PAD_X = 16
+    private const val LINE_PAD_Y = 4
+    private const val LINE_PAD_X = 8
     /** Şerit bölgenin bundan büyük kısmını kaplıyorsa kırpmanın faydası yok (doku yoğun sahne): bölgenin tamamı okunur. */
     private const val MAX_FRACTION = 0.8
 
@@ -139,6 +141,68 @@ object TextBand {
         }
         java.util.Arrays.fill(out, w * h, out.size, 128.toByte())
         return out
+    }
+
+    /**
+     * [band] içindeki yazı satırlarını ayrı ayrı verir (satır okuyucu için; boşluklarla ayrılan satır kümeleri). Her
+     * satır sıkı kırpılır: PaddleOCR satır okuyucusu yazının satır yüksekliğini doldurmasını istiyor, gevşek kırpmada
+     * çimen gibi arka plan harflere karışıyordu (2026-11-16 denemesi).
+     */
+    fun lines(y: ByteArray, width: Int, height: Int, band: Band): List<Band> {
+        val rows = IntArray(band.height)
+        for (r in 0 until band.height) {
+            val base = (band.top + r) * width
+            var count = 0
+            var x = band.left
+            val end = minOf(band.right, width - 2)
+            while (x < end) {
+                if (isEdge(y, base + x)) count++
+                x++
+            }
+            rows[r] = count
+        }
+        val threshold = maxOf(4, band.width / 80)
+        val runs = mutableListOf<IntArray>()
+        var start = -1
+        var gap = 0
+        for (r in 0 until band.height) {
+            if (rows[r] >= threshold) {
+                if (start < 0) start = r
+                gap = 0
+            } else if (start >= 0) {
+                gap++
+                // 3 satırdan kısa boşluk aynı yazı satırının içidir (harflerin ortası, noktalar).
+                if (gap >= 3) {
+                    runs.add(intArrayOf(start, r - gap + 1))
+                    start = -1
+                    gap = 0
+                }
+            }
+        }
+        if (start >= 0) runs.add(intArrayOf(start, band.height - gap))
+        val result = mutableListOf<Band>()
+        for (run in runs) {
+            if (run[1] - run[0] < 8) continue
+            val top = maxOf(0, band.top + run[0] - LINE_PAD_Y)
+            val bottom = minOf(height, band.top + run[1] + LINE_PAD_Y)
+            var left = width
+            var right = 0
+            for (row in top until bottom) {
+                val base = row * width
+                var x = band.left
+                val end = minOf(band.right, width - 2)
+                while (x < end) {
+                    if (isEdge(y, base + x)) {
+                        if (x < left) left = x
+                        if (x + 2 > right) right = x + 2
+                    }
+                    x++
+                }
+            }
+            if (right - left < 16) continue
+            result.add(Band(maxOf(0, left - LINE_PAD_X), top, minOf(width, right + LINE_PAD_X), bottom))
+        }
+        return result
     }
 
     /** Bütün Y görüntüsünü [outW]×[outH]'ye küçültüp NV21 gri görüntü olarak verir (kutu ortalaması). */

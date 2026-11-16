@@ -10,6 +10,8 @@ produce the bundled libraries, is available at https://github.com/yorulmazsinan/
 |---|---|---|
 | chiaki-ng (`libchiaki`, Remote Play) | AGPL-3.0 with OpenSSL exception | https://github.com/chiaki-ng/chiaki-ng |
 | nanopb | zlib | https://github.com/nanopb/nanopb |
+| PaddleOCR PP-OCRv4 text recognition model (Android TV, `assets/ocr`, converted ONNX→TFLite from RapidOCR's export) | Apache-2.0 | https://github.com/PaddlePaddle/PaddleOCR · https://github.com/RapidAI/RapidOCR |
+| TensorFlow Lite (Android) | Apache-2.0 | https://github.com/tensorflow/tensorflow |
 | Jerasure | BSD-3-Clause | https://github.com/ceph/jerasure |
 | GF-Complete | BSD-3-Clause | https://github.com/ceph/gf-complete |
 | curl | curl license (MIT/X derivative) | https://curl.se |

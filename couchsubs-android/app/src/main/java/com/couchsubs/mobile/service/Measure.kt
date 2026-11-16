@@ -16,6 +16,14 @@ object Measure {
     private val timeline = ArrayList<String>()
     private val ocrCalls = ArrayDeque<Ocr>()
     private val lines = ArrayDeque<Line>()
+    private class Compare(val npu: String, val kit: String?, val confidence: Double)
+    private val compares = ArrayDeque<Compare>()
+
+    /** Yapay zekâ çipindeki okuyucunun yazısı ile ML Kit'inki (kit null: NPU emin olmadığı için ML Kit'e bırakıldı). */
+    fun compare(npu: String, kit: String?, confidence: Double) = synchronized(lock) {
+        if (compares.size >= 60) compares.removeFirst()
+        compares.addLast(Compare(npu, kit, confidence))
+    }
 
     /** Yeni çeviri oturumu: önceki ölçümler silinir. */
     fun reset() = synchronized(lock) {
@@ -23,6 +31,7 @@ object Measure {
         timeline.clear()
         ocrCalls.clear()
         lines.clear()
+        compares.clear()
         timeline.add("0,0 sn  çeviri başlatıldı")
     }
 
@@ -69,6 +78,11 @@ object Measure {
                 append("  OCR: ").append(stats(list.mapNotNull { it.pair.ocrMs })).append('\n')
                 append("  çeviri: ").append(stats(list.mapNotNull { it.pair.translationMs })).append('\n')
                 append("  toplam gecikme: ").append(stats(list.mapNotNull { it.pair.totalMs })).append('\n')
+            }
+            append("\n=== NPU ve ML Kit karşılaştırması (son ").append(compares.size).append(") ===\n")
+            compares.forEach { c ->
+                append("güven %.2f".format(c.confidence)).append(" · NPU: ").append(c.npu)
+                append(if (c.kit == null) "  (emin değil, ML Kit'e bırakıldı)" else "\n            ML Kit: ${c.kit}").append('\n')
             }
             append("\nSon 40 satır (sn · OCR/çeviri/toplam ms · kaynak · metin):\n")
             lines.toList().takeLast(40).forEach { l ->
