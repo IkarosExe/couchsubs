@@ -256,7 +256,18 @@ class TranslationService : Service() {
             subtitleServer.sendStyle(settings.style)
             liveServer = subtitleServer
             if (isTvDevice()) startTvOverlay(port)
-            if (isTvDevice()) diagServer = DiagServer { diagnosticsSummary() + "\n\n" + Measure.report() }.takeIf { it.start() }
+            if (isTvDevice()) diagServer = DiagServer({ diagnosticsSummary() + "\n\n" + Measure.report() }) { form ->
+                // PowerShell'den anahtar: deepl=ANAHTAR (kumandayla 39 harf yazmak yerine). Motor da DeepL yapılır;
+                // yeni motor çeviri yeniden başlatılınca devreye girer.
+                val key = form["deepl"]?.trim()
+                if (key.isNullOrEmpty() || key.length < 20) "Anahtar bulunamadı. Kullanım: deepl=ANAHTAR"
+                else {
+                    settings.setApiKey(EngineChoice.DEEPL, key)
+                    settings.engine = EngineChoice.DEEPL
+                    Measure.mark("DeepL anahtarı kaydedildi")
+                    "Tamam: DeepL anahtarı kaydedildi ve motor DeepL yapıldı. Çeviriyi durdurup yeniden başlatın."
+                }
+            }.takeIf { it.start() }
         } catch (error: Exception) {
             Log.e(TAG, "SSE server", error)
             LiveState.update { it.copy(error = getString(R.string.error_port)) }
@@ -536,6 +547,16 @@ class TranslationService : Service() {
         null
     }
 
+    /** Yazı tanımayı hızlandırabilecek donanım: NNAPI aygıtları (NPU/APU), Vulkan ve OpenGL ES sürümü. */
+    private val accelerators: String by lazy {
+        val nnapi = try { NativeBridge.nnapiDevices() } catch (error: Throwable) { "okunamadı (${error.javaClass.simpleName})" }
+        val pm = packageManager
+        val vulkan = pm.systemAvailableFeatures.firstOrNull { it.name == android.content.pm.PackageManager.FEATURE_VULKAN_HARDWARE_VERSION }
+            ?.let { v -> "${v.version shr 22}.${(v.version shr 12) and 0x3ff}" } ?: "yok"
+        val gles = (getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager).deviceConfigurationInfo.glEsVersion
+        "Hızlandırıcılar: NNAPI: $nnapi · Vulkan: $vulkan · OpenGL ES: $gles · SoC: ${android.os.Build.HARDWARE}/${android.os.Build.BOARD}"
+    }
+
     /** Tanı sayfasının özeti: durum satırı, son satırın ölçümleri ve ayarlar. */
     private fun diagnosticsSummary(): String {
         val status = LiveState.status.value
@@ -553,6 +574,7 @@ class TranslationService : Service() {
             append("Alan: ").append(region).append('\n')
             append("Motor: ").append(settings.engine).append(", HDMI: ").append(settings.tvHdmiPort)
             append(", Android ").append(android.os.Build.VERSION.RELEASE).append(", ").append(android.os.Build.MODEL)
+            append('\n').append(accelerators)
         }
     }
 

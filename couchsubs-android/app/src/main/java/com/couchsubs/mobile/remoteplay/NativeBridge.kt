@@ -57,6 +57,8 @@ object NativeBridge {
         listener: NativeSessionListener, outcome: NativeOutcome,
     ): Long
     @JvmStatic external fun sessionStop(ptr: Long)
+    /** NNAPI hızlandırıcıları (IkarosExe fork'u, tanı için). */
+    @JvmStatic external fun nnapiDevices(): String
     /** PS5'in istediği giriş şifresini (ASCII rakamlar) gönderir; 0 başarı. Olay geri çağrısından çağrılmamalı. */
     @JvmStatic external fun sessionSetLoginPin(ptr: Long, pin: ByteArray): Int
     @JvmStatic external fun sessionErrors(ptr: Long): String?

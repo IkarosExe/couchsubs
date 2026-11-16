@@ -11,7 +11,7 @@ import java.net.ServerSocket
 import java.net.Socket
 import kotlin.concurrent.thread
 
-class DiagServer(private val summary: () -> String) {
+class DiagServer(private val summary: () -> String, private val onForm: ((Map<String, String>) -> String)? = null) {
     @Volatile private var server: ServerSocket? = null
 
     fun start(): Boolean = try {
@@ -39,9 +39,28 @@ class DiagServer(private val summary: () -> String) {
     private fun serve(socket: Socket) {
         try {
             socket.soTimeout = 10_000
-            // İsteğin yalnız ilk satırı okunur (GET /).
-            socket.getInputStream().bufferedReader().readLine() ?: return
-            val text = buildString {
+            val input = socket.getInputStream().bufferedReader(Charsets.UTF_8)
+            val request = input.readLine() ?: return
+            var length = 0
+            while (true) {
+                val header = input.readLine() ?: break
+                if (header.isEmpty()) break
+                if (header.startsWith("content-length:", ignoreCase = true)) length = header.substringAfter(':').trim().toIntOrNull() ?: 0
+            }
+            // POST: ayar (ör. PowerShell'den DeepL anahtarı). Gövde "ad=değer&..." ya da yalnız "ad=değer".
+            val text = if (request.startsWith("POST") && onForm != null) {
+                val body = CharArray(length.coerceIn(0, 4096)).let { buf ->
+                    var read = 0
+                    while (read < buf.size) { val n = input.read(buf, read, buf.size - read); if (n < 0) break; read += n }
+                    String(buf, 0, read)
+                }
+                val form = body.split('&').mapNotNull { part ->
+                    val i = part.indexOf('=')
+                    if (i <= 0) null else java.net.URLDecoder.decode(part.substring(0, i), "UTF-8") to
+                        java.net.URLDecoder.decode(part.substring(i + 1), "UTF-8")
+                }.toMap()
+                onForm.invoke(form) + "\n"
+            } else buildString {
                 append("CouchSubs TV tanı\n")
                 append(summary()).append("\n\n")
                 append("=== Kayıtlar (son 800 satır) ===\n")

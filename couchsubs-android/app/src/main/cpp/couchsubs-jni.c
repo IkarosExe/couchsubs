@@ -620,3 +620,53 @@ JNIEXPORT jlong JNICALL JNI_FCN(sessionFrames)(JNIEnv *env, jclass cls, jlong pt
 	cs_session *session = (cs_session *)(intptr_t)ptr;
 	return session ? (jlong)session->decoder.frames_out : 0;
 }
+
+/* IkarosExe fork'u (2026-11-16): cihazdaki NNAPI hızlandırıcılarını (NPU/APU, GPU, DSP) listeler. Yazı tanımayı
+ * işlemci yerine yapay zeka çipinde çalıştırmanın mümkün olup olmadığını görmek için; libneuralnetworks dlopen'la
+ * açılır (bağlama gerekmez, yoksa boş döner). */
+#include <dlfcn.h>
+#include <stdint.h>
+JNIEXPORT jstring JNICALL JNI_FCN(nnapiDevices)(JNIEnv *env, jclass cls)
+{
+	char out[1024] = "";
+	void *lib = dlopen("libneuralnetworks.so", RTLD_NOW);
+	if (!lib)
+		return (*env)->NewStringUTF(env, "NNAPI yok");
+	typedef int (*count_fn)(uint32_t *);
+	typedef int (*get_fn)(uint32_t, void **);
+	typedef int (*name_fn)(const void *, const char **);
+	typedef int (*type_fn)(const void *, int32_t *);
+	typedef int (*level_fn)(const void *, int64_t *);
+	count_fn get_count = (count_fn)dlsym(lib, "ANeuralNetworks_getDeviceCount");
+	get_fn get_device = (get_fn)dlsym(lib, "ANeuralNetworks_getDevice");
+	name_fn get_name = (name_fn)dlsym(lib, "ANeuralNetworksDevice_getName");
+	type_fn get_type = (type_fn)dlsym(lib, "ANeuralNetworksDevice_getType");
+	level_fn get_level = (level_fn)dlsym(lib, "ANeuralNetworksDevice_getFeatureLevel");
+	uint32_t count = 0;
+	if (!get_count || !get_device || !get_name || get_count(&count) != 0)
+	{
+		dlclose(lib);
+		return (*env)->NewStringUTF(env, "NNAPI cihaz listesi alınamadı");
+	}
+	static const char *types[] = { "?", "bilinmiyor", "diğer", "işlemci", "GPU", "hızlandırıcı (NPU)" };
+	for (uint32_t i = 0; i < count; i++)
+	{
+		void *device = NULL;
+		const char *name = "?";
+		int32_t type = 0;
+		int64_t level = 0;
+		if (get_device(i, &device) != 0 || !device)
+			continue;
+		get_name(device, &name);
+		if (get_type) get_type(device, &type);
+		if (get_level) get_level(device, &level);
+		char item[160];
+		snprintf(item, sizeof(item), "%s%s (%s, düzey %lld)", i ? "; " : "", name,
+			(type >= 0 && type <= 5) ? types[type] : "?", (long long)level);
+		strncat(out, item, sizeof(out) - strlen(out) - 1);
+	}
+	dlclose(lib);
+	if (!count)
+		return (*env)->NewStringUTF(env, "NNAPI var, hızlandırıcı yok");
+	return (*env)->NewStringUTF(env, out);
+}
