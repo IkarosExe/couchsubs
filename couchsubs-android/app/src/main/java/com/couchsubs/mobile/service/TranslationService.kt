@@ -266,16 +266,21 @@ class TranslationService : Service() {
         val linePool = LinePool(File(filesDir, "line-pool.json"), "CouchSubs Android ${BuildConfig.VERSION_NAME}",
             enabled = settings.sharePool && replacement == null)
         pool = linePool
-        // Paketler burada açılır (ilk altyazı beklemesin); kapalıysa hiç açılmaz. Bellek yetmezse paketsiz sürülür:
-        // çeviri motoru çalışır, uygulama kapanmaz ve PS5 bağlantısı kopmaz.
-        var packTitles = if (!settings.packsEnabled) null else try {
-            library.infos.associate { it.id to it.title }
-        } catch (error: OutOfMemoryError) {
-            Log.e(TAG, "packs", error)
-            null
-        }
-        Backend.breadcrumb("çeviri: paketler ${packTitles?.size ?: "yok"}")
-        Measure.mark("paketler açıldı (${packTitles?.size ?: 0})")
+        // Paketler arka planda açılır; PS5 bağlantısı onları beklemez. TV'de 9 paketin açılması 80 sn sürüyor ve
+        // uzaktan oynama ancak ondan sonra başlıyordu (ölçüm, 2026-11-16). Açılana kadar satırlar motorla çevrilir.
+        // Bellek yetmezse paketsiz sürülür: çeviri motoru çalışır, uygulama kapanmaz ve PS5 bağlantısı kopmaz.
+        var packTitles: Map<String, String>? = null
+        if (settings.packsEnabled) Thread({
+            val titles = try {
+                library.infos.associate { it.id to it.title }
+            } catch (error: OutOfMemoryError) {
+                Log.e(TAG, "packs", error)
+                null
+            }
+            packTitles = titles
+            Backend.breadcrumb("çeviri: paketler ${titles?.size ?: "yok"}")
+            Measure.mark("paketler açıldı (${titles?.size ?: 0})")
+        }, "CouchSubs packs").apply { priority = Thread.MIN_PRIORITY }.start()
         readers.clear()
         // TV'de iki paralel okuma denendi (2026-11-16): yazılım çözücüyle 4 çekirdek boğuldu, OCR 1 sn'den 2,6 sn'ye,
         // çeviri 0,4 sn'den 10 sn'ye çıktı. Tek okuma.

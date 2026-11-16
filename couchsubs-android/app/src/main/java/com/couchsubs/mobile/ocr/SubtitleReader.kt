@@ -80,11 +80,22 @@ class SubtitleReader(
                 if (band.width > 0) {
                     triedBand = true
                     lastAreaPercent = (100L * band.width * band.height / (pixels.width.toLong() * pixels.height)).toInt()
-                    // Alçak şerit (küçük yazı, tek satır) 2 kat büyütülerek okunur.
-                    val scale = if (band.height < SMALL_BAND) 2 else 1
+                    // Alçak şerit (küçük yazı, tek satır) 2 kat büyütülerek okunur. Geniş ve yeterince yüksek şerit
+                    // FULL_READ_MAX_WIDTH'e küçültülür: ML Kit'in süresi enle artıyor (1348 px şerit ~1100 ms, 960 px
+                    // tam bölge ~725 ms; TV ölçümü 2026-11-16).
                     val reading = try {
-                        recognize(TextBand.cropScaled(pixels.nv21, pixels.width, band, scale),
-                            band.width * scale, band.height * scale, band, pixels.width, pixels.height, scale)
+                        if (band.height < SMALL_BAND) {
+                            recognize(TextBand.cropScaled(pixels.nv21, pixels.width, band, 2),
+                                band.width * 2, band.height * 2, band, pixels.width, pixels.height, 2.0)
+                        } else if (band.width > FULL_READ_MAX_WIDTH && band.height * FULL_READ_MAX_WIDTH / band.width >= SMALL_BAND) {
+                            val w = FULL_READ_MAX_WIDTH and 1.inv()
+                            val h = (band.height * w / band.width) and 1.inv()
+                            recognize(TextBand.resize(TextBand.crop(pixels.nv21, pixels.width, band), band.width, band.height, w, h),
+                                w, h, band, pixels.width, pixels.height, w.toDouble() / band.width)
+                        } else {
+                            recognize(TextBand.crop(pixels.nv21, pixels.width, band), band.width, band.height,
+                                band, pixels.width, pixels.height)
+                        }
                     } catch (error: Exception) {
                         android.util.Log.w("CouchSubsOcr", "Şerit okunamadı (${band.width}x${band.height}): ${error.message}")
                         Reading.Empty
@@ -107,10 +118,11 @@ class SubtitleReader(
 
     /** [band] verildiyse görüntü bölgenin o şerididir; kutular bölgenin tamamına göre hesaplanır. */
     private fun recognize(nv21: ByteArray, width: Int, height: Int, band: Band?, regionWidth: Int, regionHeight: Int,
-                          scale: Int = 1): Reading {
+                          scale: Double = 1.0): Reading {
         lastMode = when {
             band == null -> if (triedBand) "şerit boş → tam bölge" else "tam bölge"
-            scale > 1 -> "şerit ×$scale"
+            scale > 1.0 -> "şerit büyütülmüş"
+            scale < 1.0 -> "şerit küçültülmüş"
             else -> "şerit"
         }
         lastWidth = width
@@ -124,8 +136,8 @@ class SubtitleReader(
             for (line in block.lines) {
                 val box = line.boundingBox?.let {
                     TextBox(
-                        (offsetX + it.left / scale.toDouble()) / regionWidth, (offsetY + it.top / scale.toDouble()) / regionHeight,
-                        (offsetX + it.right / scale.toDouble()) / regionWidth, (offsetY + it.bottom / scale.toDouble()) / regionHeight,
+                        (offsetX + it.left / scale) / regionWidth, (offsetY + it.top / scale) / regionHeight,
+                        (offsetX + it.right / scale) / regionWidth, (offsetY + it.bottom / scale) / regionHeight,
                     )
                 }
                 lines.add(TextLine(line.text, box))
