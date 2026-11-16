@@ -325,7 +325,9 @@ class TranslationService : Service() {
         }
         background.scheduleWithFixedDelay({ linePool.flush() }, LinePool.FLUSH_INTERVAL_MS, LinePool.FLUSH_INTERVAL_MS, TimeUnit.MILLISECONDS)
         // TV: yapay zekâ çipindeki satır okuyucu arka planda hazırlanıp ölçülür; hazır olana kadar ML Kit okur.
-        if (isTvDevice()) Thread({
+        // Kapalı (ölçüm, 2026-11-16): NNAPI üç yolda da modeli reddetti, işlemcide satır başına ~7 sn sürdü ve okuma
+        // bozuk çıktı. Daha küçük, int8 bir model denenene kadar ML Kit okur.
+        if (NPU_ENABLED && isTvDevice()) Thread({
             try { com.couchsubs.mobile.ocr.NpuRecognizer.prepare(this) } catch (error: Throwable) { Log.w(TAG, "NPU", error) }
         }, "CouchSubs NPU").start()
         // Ücretsiz modelin ilk indirilmesi (yaklaşık 30 MB); oyun paketleri beklemeden çalışır.
@@ -620,6 +622,8 @@ class TranslationService : Service() {
     }
 
     /** Kurulan parçaları kapatır; onDestroy'dan ve hizmet kurulum bitmeden durdurulduysa kurulum iş parçacığından çağrılır. */
+    private val NPU_ENABLED = false
+
     private fun releaseParts() = synchronized(lifecycle) {
         diagServer?.stop()
         diagServer = null
