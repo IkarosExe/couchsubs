@@ -130,7 +130,18 @@ static bool prefers_software_decoder(void)
 {
 	char manufacturer[PROP_VALUE_MAX] = { 0 };
 	__system_property_get("ro.product.manufacturer", manufacturer);
-	return strcasecmp(manufacturer, "samsung") == 0;
+	if(strcasecmp(manufacturer, "samsung") == 0)
+		return true;
+	/* IkarosExe fork'u (2026-11-16): Android TV'lerde (TCL C7L, MediaTek Pentonic/MT9653) donanım çözücü kareyi
+	 * üreticiye özgü karolu (tiled) düzende veriyor; ImageReader'dan düz satır gibi okununca görüntü karolara
+	 * bölünmüş ve okunamaz çıkıyor. Yazılım çözücü düz YUV yazar. */
+	char characteristics[PROP_VALUE_MAX] = { 0 };
+	__system_property_get("ro.build.characteristics", characteristics);
+	if(strstr(characteristics, "tv") != NULL)
+		return true;
+	char platform[PROP_VALUE_MAX] = { 0 };
+	__system_property_get("ro.board.platform", platform);
+	return strncasecmp(platform, "mt", 2) == 0;
 }
 
 bool couchsubs_video_decoder_start(CouchSubsVideoDecoder *decoder, JNIEnv *env, jobject surface, bool swap)
