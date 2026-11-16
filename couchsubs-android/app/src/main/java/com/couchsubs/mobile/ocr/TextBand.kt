@@ -141,6 +141,27 @@ object TextBand {
         return out
     }
 
+    /** Bütün Y görüntüsünü [outW]×[outH]'ye küçültüp NV21 gri görüntü olarak verir (kutu ortalaması). */
+    fun resize(y: ByteArray, width: Int, height: Int, outW: Int, outH: Int): ByteArray {
+        val out = ByteArray(outW * outH * 3 / 2)
+        for (oy in 0 until outH) {
+            val y0 = oy * height / outH
+            val y1 = maxOf(y0 + 1, (oy + 1) * height / outH)
+            for (ox in 0 until outW) {
+                val x0 = ox * width / outW
+                val x1 = maxOf(x0 + 1, (ox + 1) * width / outW)
+                var sum = 0
+                for (yy in y0 until y1) {
+                    val base = yy * width
+                    for (xx in x0 until x1) sum += y[base + xx].toInt() and 0xff
+                }
+                out[oy * outW + ox] = (sum / ((y1 - y0) * (x1 - x0))).toByte()
+            }
+        }
+        java.util.Arrays.fill(out, outW * outH, out.size, 128.toByte())
+        return out
+    }
+
     /** Y düzleminden şeridi NV21 gri görüntü olarak kopyalar (renk nötr). */
     fun crop(y: ByteArray, width: Int, band: Band): ByteArray {
         val w = band.width

@@ -28,6 +28,8 @@ class SubtitleReader(
     @Volatile var lastAreaPercent = 100
     /** Bu boydan alçak şerit 2 kat büyütülür (piksel; 1080p'de altyazı şeridi ~50-60 px, bundan alçağı küçük yazıdır). */
     private val SMALL_BAND = 48
+    /** Tam bölge okumasının en büyük eni (1080p'deki %72'lik bölge 1382 px → 720p karşılığı ~920). */
+    private val FULL_READ_MAX_WIDTH = 960
 
     companion object {
         /** YUV_420_888 karenin bölgesini NV21 gri görüntüye kopyalar (en ve boy çift sayıya yuvarlanır). */
@@ -86,6 +88,13 @@ class SubtitleReader(
             }
         }
         lastAreaPercent = 100
+        // Tam bölge okuması 1080p'de ~2 kat yavaştı (300-400 ms, Horizon'da çimenli sahnede şerit bulunamayınca hep bu yol;
+        // 2026-11-16). Geniş bölge 720p karşılığına küçültülür; keskinlik gereken küçük yazı yukarıdaki şerit yolundan okunur.
+        if (pixels.width > FULL_READ_MAX_WIDTH) {
+            val w = FULL_READ_MAX_WIDTH and 1.inv()
+            val h = ((pixels.height.toLong() * w / pixels.width).toInt()).coerceAtLeast(32) and 1.inv()
+            return recognize(TextBand.resize(pixels.nv21, pixels.width, pixels.height, w, h), w, h, null, w, h)
+        }
         return recognize(pixels.nv21, pixels.width, pixels.height, null, pixels.width, pixels.height)
     }
 
