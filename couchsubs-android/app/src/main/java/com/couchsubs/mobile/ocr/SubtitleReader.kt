@@ -26,6 +26,8 @@ class SubtitleReader(
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     /** Tanı: son okumada OCR'a giden alanın bölgeye oranı (%); şerit yoksa ya da tam okunduysa 100. */
     @Volatile var lastAreaPercent = 100
+    /** Bu boydan alçak şerit 2 kat büyütülür (piksel; 1080p'de altyazı şeridi ~50-60 px, bundan alçağı küçük yazıdır). */
+    private val SMALL_BAND = 48
 
     companion object {
         /** YUV_420_888 karenin bölgesini NV21 gri görüntüye kopyalar (en ve boy çift sayıya yuvarlanır). */
@@ -69,8 +71,15 @@ class SubtitleReader(
                 // dedirtip soluk yazılı satırların hiç gösterilmemesine yol açıyordu. Bölgenin tamamı okunur.
                 if (band.width > 0) {
                     lastAreaPercent = (100L * band.width * band.height / (pixels.width.toLong() * pixels.height)).toInt()
-                    val reading = recognize(TextBand.crop(pixels.nv21, pixels.width, band), band.width, band.height,
-                        band, pixels.width, pixels.height)
+                    // Alçak şerit (küçük yazı, tek satır) 2 kat büyütülerek okunur.
+                    val scale = if (band.height < SMALL_BAND) 2 else 1
+                    val reading = try {
+                        recognize(TextBand.cropScaled(pixels.nv21, pixels.width, band, scale),
+                            band.width * scale, band.height * scale, band, pixels.width, pixels.height, scale)
+                    } catch (error: Exception) {
+                        android.util.Log.w("CouchSubsOcr", "Şerit okunamadı (${band.width}x${band.height}): ${error.message}")
+                        Reading.Empty
+                    }
                     // Şeritte yazı çıkmadıysa şerit yanlış yerdedir: bölgenin tamamı okunur (asla eskisinden kötü değil).
                     if (reading.lines.isNotEmpty()) return reading
                 }
@@ -81,7 +90,8 @@ class SubtitleReader(
     }
 
     /** [band] verildiyse görüntü bölgenin o şerididir; kutular bölgenin tamamına göre hesaplanır. */
-    private fun recognize(nv21: ByteArray, width: Int, height: Int, band: Band?, regionWidth: Int, regionHeight: Int): Reading {
+    private fun recognize(nv21: ByteArray, width: Int, height: Int, band: Band?, regionWidth: Int, regionHeight: Int,
+                          scale: Int = 1): Reading {
         val input = InputImage.fromByteArray(nv21, width, height, 0, InputImage.IMAGE_FORMAT_NV21)
         val text = Tasks.await(recognizer.process(input), 5, TimeUnit.SECONDS)
         val offsetX = band?.left ?: 0
@@ -91,8 +101,8 @@ class SubtitleReader(
             for (line in block.lines) {
                 val box = line.boundingBox?.let {
                     TextBox(
-                        (offsetX + it.left).toDouble() / regionWidth, (offsetY + it.top).toDouble() / regionHeight,
-                        (offsetX + it.right).toDouble() / regionWidth, (offsetY + it.bottom).toDouble() / regionHeight,
+                        (offsetX + it.left / scale.toDouble()) / regionWidth, (offsetY + it.top / scale.toDouble()) / regionHeight,
+                        (offsetX + it.right / scale.toDouble()) / regionWidth, (offsetY + it.bottom / scale.toDouble()) / regionHeight,
                     )
                 }
                 lines.add(TextLine(line.text, box))

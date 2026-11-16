@@ -20,6 +20,8 @@ object TextBand {
     private const val EDGE = 70
     private const val BRIGHT = 185
     private const val PAD_Y = 12
+    private const val MIN_H = 40
+    private const val MIN_W = 96
     private const val PAD_X = 16
     /** Şerit bölgenin bundan büyük kısmını kaplıyorsa kırpmanın faydası yok (doku yoğun sahne): bölgenin tamamı okunur. */
     private const val MAX_FRACTION = 0.8
@@ -78,11 +80,25 @@ object TextBand {
         left = maxOf(0, left - PAD_X) and 1.inv()
         right = minOf(width, right + PAD_X)
         top = top and 1.inv()
+        // ML Kit en az 32×32 ister; küçük yazının şeridi bundan küçük kalınca okuma hata verip satır kayboluyordu
+        // ("InputImage width and height should be at least 32", 2026-11-16). Şerit en az MIN_W×MIN_H'ye genişletilir.
+        if (bottom - top < MIN_H) {
+            val grow = MIN_H - (bottom - top)
+            top = maxOf(0, top - (grow + 1) / 2)
+            bottom = minOf(height, top + MIN_H)
+            top = maxOf(0, bottom - MIN_H) and 1.inv()
+        }
+        if (right - left < MIN_W) {
+            val grow = MIN_W - (right - left)
+            left = maxOf(0, left - (grow + 1) / 2)
+            right = minOf(width, left + MIN_W)
+            left = maxOf(0, right - MIN_W) and 1.inv()
+        }
         // NV21 için en ve boy çift olmalı.
         val w = (right - left) and 1.inv()
         val h = (bottom - top) and 1.inv()
         val band = Band(left, top, left + w, top + h)
-        if (band.width < 16 || band.height < 16) return null
+        if (band.width < 32 || band.height < 32) return null
         if (band.width.toLong() * band.height > width.toLong() * height * MAX_FRACTION) return null
         return band
     }
@@ -91,6 +107,38 @@ object TextBand {
         val a = y[i].toInt() and 0xff
         val b = y[i + 2].toInt() and 0xff
         return abs(a - b) >= EDGE && maxOf(a, b) >= BRIGHT
+    }
+
+    /**
+     * Şeridi [scale] kat büyütüp NV21 gri görüntü olarak verir (doğrusal ara değer). Küçük yazıda ML Kit harfleri
+     * karıştırıyordu; harf başına ~16 px önerilir.
+     */
+    fun cropScaled(y: ByteArray, width: Int, band: Band, scale: Int): ByteArray {
+        if (scale <= 1) return crop(y, width, band)
+        val w = band.width * scale
+        val h = band.height * scale
+        val out = ByteArray(w * h * 3 / 2)
+        val maxX = band.width - 1
+        val maxY = band.height - 1
+        for (oy in 0 until h) {
+            val fy = (oy + 0.5f) / scale - 0.5f
+            val y0 = fy.toInt().coerceIn(0, maxY)
+            val y1 = (y0 + 1).coerceAtMost(maxY)
+            val wy = (fy - y0).coerceIn(0f, 1f)
+            val row0 = (band.top + y0) * width + band.left
+            val row1 = (band.top + y1) * width + band.left
+            for (ox in 0 until w) {
+                val fx = (ox + 0.5f) / scale - 0.5f
+                val x0 = fx.toInt().coerceIn(0, maxX)
+                val x1 = (x0 + 1).coerceAtMost(maxX)
+                val wx = (fx - x0).coerceIn(0f, 1f)
+                val a = (y[row0 + x0].toInt() and 0xff) * (1 - wx) + (y[row0 + x1].toInt() and 0xff) * wx
+                val b = (y[row1 + x0].toInt() and 0xff) * (1 - wx) + (y[row1 + x1].toInt() and 0xff) * wx
+                out[oy * w + ox] = (a * (1 - wy) + b * wy + 0.5f).toInt().toByte()
+            }
+        }
+        java.util.Arrays.fill(out, w * h, out.size, 128.toByte())
+        return out
     }
 
     /** Y düzleminden şeridi NV21 gri görüntü olarak kopyalar (renk nötr). */

@@ -375,10 +375,10 @@ class TranslationService : Service() {
         }
         val source = replacement?.create(this, onFrame, onState)
             ?: StreamSession(console, accountId, onFrame, onState, onConsoleMoved = { moved -> settings.console = moved },
-                // TV'de (IkarosExe fork'u) görüntü yazılım çözücüyle çözülür; 1080p'de TV işlemcisi geride kalıp
-                // altyazıyı saniyelerce geciktiriyordu. 720p yükü ~2,25 kat azaltır, altyazı yine okunur.
-                width = if (isTvDevice()) 1280 else 1920,
-                height = if (isTvDevice()) 720 else 1080,
+                // TV'de de 1080p: görüntüyü artık donanım çözücü + GPU çözüyor (işlemci boşta). 720p'de küçük yazının harfleri
+                // ~12 px kalıp "dangerOus", "tritbe" gibi okunuyordu (Horizon, 2026-11-16).
+                width = 1920,
+                height = 1080,
                 loginPasscode = settings.loginPasscode,
                 // TV'de donanım çözücü + GPU okuma: işlemci görüntü çözmekten kurtulur (bkz. GlFrameBridge).
                 gpuReadback = isTvDevice())

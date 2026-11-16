@@ -33,7 +33,7 @@ object OcrNoise {
                 if (kept.isNotEmpty() && kept.last().last() !in ".?!…,;:") kept[kept.size - 1] = kept.last() + token
                 continue
             }
-            val fixed = cleanCore(core)
+            val fixed = cleanCore(core)?.let(::fixShapeCase)
             if (fixed != null) kept.add(lead + fixed + trail)
             // Atılan çöpün ardındaki noktalama cümleye aittir ("ou$3e," → virgül kalır).
             else if (trail.isNotEmpty() && kept.isNotEmpty()) kept[kept.size - 1] = kept.last() + trail
@@ -41,6 +41,20 @@ object OcrNoise {
         // Altyazının yanındaki göstergenin sayısı satırın başına yapışıyor ("9? We'll lose", "23m CESARE: Here!").
         if (kept.size >= 3 && leadingNumber.matches(kept[0]) && kept[1][0].isUpperCase()) kept.removeAt(0)
         return kept.joinToString(" ")
+    }
+
+    /**
+     * Büyük ve küçük hali aynı biçimde olan harfler (c, o, s, u, v, w, x, z) küçük yazıda sözcük ortasında büyük
+     * okunuyor ("dangerOus", "uSually"; Horizon, 2026-11-16). Küçük harften sonra gelen böyle bir büyük harf küçültülür;
+     * tümü büyük harfli sözcüklere ve "McDonald" gibi biçimlere dokunulmaz.
+     */
+    fun fixShapeCase(word: String): String {
+        if (word.length < 3 || word.none { it.isLowerCase() }) return word
+        val chars = word.toCharArray()
+        for (i in 1 until chars.size) {
+            if (chars[i] in "COSUVWXZ" && chars[i - 1].isLowerCase()) chars[i] = chars[i].lowercaseChar()
+        }
+        return String(chars)
     }
 
     /** Bir okumanın ne kadar sözcük gibi göründüğü; aynı karenin iki okumasından iyisini seçmek için. */
