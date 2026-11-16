@@ -57,6 +57,9 @@ android {
         ndk { abiFilters(*abis) }
         buildConfigField 'String', 'PACKS_URL', "\"${secret('packs.url', 'https://couchsubs-packs.enmera.workers.dev')}\""
         buildConfigField 'String', 'FACEBOOK_APP_ID', "\"${secret('facebook.appId')}\""
+        // IkarosExe fork'u: yerel derlemede verilen DeepL anahtarı (DEEPL_KEY ortam değişkeni ya da secrets.properties'te
+        // deepl.key). Depoya girmez; kayıtlı anahtar yoksa ilk açılışta kaydedilip motor DeepL yapılır.
+        buildConfigField 'String', 'DEFAULT_DEEPL_KEY', "\"${secret('deepl.key')}\""
         buildConfigField 'boolean', 'HAS_FIREBASE', "${hasGoogleServices}"
         buildConfigField 'String', 'TV_SAMSUNG_VERSION', "\"${tizenVersion}\""
         manifestPlaceholders = [

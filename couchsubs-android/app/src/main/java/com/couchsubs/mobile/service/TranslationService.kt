@@ -195,6 +195,10 @@ class TranslationService : Service() {
             stopSelf()
             return
         }
+        if (BuildConfig.DEFAULT_DEEPL_KEY.isNotBlank() && settings.apiKey(EngineChoice.DEEPL).isNullOrBlank()) {
+            settings.setApiKey(EngineChoice.DEEPL, BuildConfig.DEFAULT_DEEPL_KEY)
+            settings.engine = EngineChoice.DEEPL
+        }
         acquireLocks()
         settings.translating = true
         Backend.breadcrumb("çeviri: başlıyor (${settings.target.name}, ${settings.engine.name}, paketler ${settings.packsEnabled})")
