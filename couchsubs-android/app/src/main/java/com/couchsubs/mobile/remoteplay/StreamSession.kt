@@ -294,7 +294,13 @@ class StreamSession(
     private fun connect(current: Int) {
         if (!isCurrent(current) || native != 0L) return
         emit(SessionState.Connecting)
+        com.couchsubs.mobile.service.Measure.mark("PS5 aranıyor (${console.host})")
         val info = ConsoleDiscovery.discover(console.host, 2000).firstOrNull() ?: relocate()
+        com.couchsubs.mobile.service.Measure.mark(when {
+            info == null -> "PS5 aramaya yanıt vermedi"
+            info.isAwake -> "PS5 bulundu, uyanık"
+            else -> "PS5 bulundu, dinlenmede: uyandırılıyor"
+        })
         searchAnswered = info != null
         Log.i(TAG, if (info == null) "PS5 ${console.host} aramaya yanıt vermedi, yine de bağlanılıyor"
             else "PS5 ${info.name} ${info.host} ${if (info.isAwake) "uyanık" else "dinlenmede, uyandırılıyor"}")
@@ -326,7 +332,10 @@ class StreamSession(
         queue.schedule({
             if (!isCurrent(current)) return@schedule
             when {
-                ConsoleDiscovery.discover(console.host, 2000).any { it.isAwake } -> openSession(current)
+                ConsoleDiscovery.discover(console.host, 2000).any { it.isAwake } -> {
+                    com.couchsubs.mobile.service.Measure.mark("PS5 uyandı")
+                    openSession(current)
+                }
                 System.currentTimeMillis() < deadline -> waitForWake(current, deadline)
                 else -> scheduleReconnect(current, SessionState.Disconnected(DisconnectKind.CONSOLE_ASLEEP))
             }
@@ -388,6 +397,7 @@ class StreamSession(
         val swapDecoder = watchdog.swapDecoder != (gpu != null)
         if (watchdog.swapDecoder) Backend.breadcrumb("PS5: önceki oturumda görüntü gelmedi; öbür çözücü türüyle deneniyor")
         val decoderSurface = gpu?.inputSurface ?: imageReader.surface
+        com.couchsubs.mobile.service.Measure.mark("oturum açılıyor (${width}x$height, ${if (gpu != null) "GPU" else "işlemci"})")
         val ptr = NativeBridge.sessionStart(c.host, c.registKey, c.morning, accountId, width, height, decoderSurface,
             swapDecoder, listener, outcome)
         if (ptr == 0L) {
@@ -397,6 +407,7 @@ class StreamSession(
             scheduleReconnect(current, SessionState.Disconnected(DisconnectKind.OTHER, outcome.errorLines.lastOrNull() ?: "session could not be started"))
             return
         }
+        com.couchsubs.mobile.service.Measure.mark("oturum başladı, PS5 yanıtı bekleniyor")
         native = ptr
         nativeGeneration = current
         reader = imageReader
@@ -415,6 +426,7 @@ class StreamSession(
         }
         Log.i(TAG, text)
         com.couchsubs.mobile.account.Backend.breadcrumb(text)
+        com.couchsubs.mobile.service.Measure.mark(text)
     }
 
     /** Oturumu kapatır (join içerir; yalnız kuyrukta, asla yerel geri çağrıdan değil). */

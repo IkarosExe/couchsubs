@@ -26,6 +26,11 @@ class SubtitleReader(
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     /** Tanı: son okumada OCR'a giden alanın bölgeye oranı (%); şerit yoksa ya da tam okunduysa 100. */
     @Volatile var lastAreaPercent = 100
+    /** Son okumanın yolu ve OCR'a giden görüntünün boyutu (ölçümler için). */
+    @Volatile var lastMode = ""
+    private var triedBand = false
+    @Volatile var lastWidth = 0
+    @Volatile var lastHeight = 0
     /** Bu boydan alçak şerit 2 kat büyütülür (piksel; 1080p'de altyazı şeridi ~50-60 px, bundan alçağı küçük yazıdır). */
     private val SMALL_BAND = 48
     /** Tam bölge okumasının en büyük eni (1080p'deki %72'lik bölge 1382 px → 720p karşılığı ~920). */
@@ -66,12 +71,14 @@ class SubtitleReader(
 
     /** Bölgeyi okur (bloklar; okuma iş parçacığında çağrılır). Satır kutuları bölgeye oranladır. */
     fun read(pixels: RegionPixels): Reading {
+        triedBand = false
         if (cropToText) {
             val band = TextBand.find(pixels.nv21, pixels.width, pixels.height)
             if (band != null) {
                 // Bölgede parlak yazı bulunamadıysa (band boş) okuma atlanmaz: boş okumalar kararlılayıcıya "altyazı kalktı"
                 // dedirtip soluk yazılı satırların hiç gösterilmemesine yol açıyordu. Bölgenin tamamı okunur.
                 if (band.width > 0) {
+                    triedBand = true
                     lastAreaPercent = (100L * band.width * band.height / (pixels.width.toLong() * pixels.height)).toInt()
                     // Alçak şerit (küçük yazı, tek satır) 2 kat büyütülerek okunur.
                     val scale = if (band.height < SMALL_BAND) 2 else 1
@@ -101,6 +108,13 @@ class SubtitleReader(
     /** [band] verildiyse görüntü bölgenin o şerididir; kutular bölgenin tamamına göre hesaplanır. */
     private fun recognize(nv21: ByteArray, width: Int, height: Int, band: Band?, regionWidth: Int, regionHeight: Int,
                           scale: Int = 1): Reading {
+        lastMode = when {
+            band == null -> if (triedBand) "şerit boş → tam bölge" else "tam bölge"
+            scale > 1 -> "şerit ×$scale"
+            else -> "şerit"
+        }
+        lastWidth = width
+        lastHeight = height
         val input = InputImage.fromByteArray(nv21, width, height, 0, InputImage.IMAGE_FORMAT_NV21)
         val text = Tasks.await(recognizer.process(input), 5, TimeUnit.SECONDS)
         val offsetX = band?.left ?: 0

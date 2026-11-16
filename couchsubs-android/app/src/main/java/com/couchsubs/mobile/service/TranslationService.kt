@@ -199,6 +199,7 @@ class TranslationService : Service() {
         settings.translating = true
         Backend.breadcrumb("çeviri: başlıyor (${settings.target.name}, ${settings.engine.name}, paketler ${settings.packsEnabled})")
         startedAt = System.currentTimeMillis()
+        Measure.reset()
         LiveState.update { LiveStatus(running = true, phase = getString(R.string.phase_preparing), startedAt = startedAt, engineLabel = engineLabel()) }
         Telemetry.event(Telemetry.SESSION_START, "target" to settings.target.name.lowercase(), "engine" to settings.engine.name.lowercase(),
             "packs" to settings.packsEnabled)
@@ -236,6 +237,7 @@ class TranslationService : Service() {
         subtitleServer.onClientsChanged = { count ->
             val before = LiveState.status.value.connectedTvs
             LiveState.update { it.copy(connectedTvs = count) }
+            Measure.mark("altyazı katmanı bağlı: $count")
             if (before == 0 && count > 0) Telemetry.event(Telemetry.TV_CONNECTED, "count" to count)
         }
         subtitleServer.onEvent = { event ->
@@ -254,7 +256,7 @@ class TranslationService : Service() {
             subtitleServer.sendStyle(settings.style)
             liveServer = subtitleServer
             if (isTvDevice()) startTvOverlay(port)
-            if (isTvDevice()) diagServer = DiagServer { diagnosticsSummary() }.takeIf { it.start() }
+            if (isTvDevice()) diagServer = DiagServer { diagnosticsSummary() + "\n\n" + Measure.report() }.takeIf { it.start() }
         } catch (error: Exception) {
             Log.e(TAG, "SSE server", error)
             LiveState.update { it.copy(error = getString(R.string.error_port)) }
@@ -273,6 +275,7 @@ class TranslationService : Service() {
             null
         }
         Backend.breadcrumb("çeviri: paketler ${packTitles?.size ?: "yok"}")
+        Measure.mark("paketler açıldı (${packTitles?.size ?: 0})")
         readers.clear()
         // TV'de iki paralel okuma denendi (2026-11-16): yazılım çözücüyle 4 çekirdek boğuldu, OCR 1 sn'den 2,6 sn'ye,
         // çeviri 0,4 sn'den 10 sn'ye çıktı. Tek okuma.
@@ -283,6 +286,7 @@ class TranslationService : Service() {
             packLookup = { text -> if (packTitles != null && settings.packsEnabled) PackLookup.match(library, text) else null }
             onPackMissed = { text -> linePool.offer(text) }
             onPairShown = { pair ->
+                Measure.line(pair)
                 LiveState.shown(pair, pair.packId?.let { packTitles?.get(it) ?: it })
                 if (replacement == null) PlayedGame.noteLine(pair.origin == "paket", library)
                 Services.addToHistory(pair.source, pair.translation,
@@ -306,6 +310,7 @@ class TranslationService : Service() {
         background.execute {
             try {
                 free.prepare()
+                Measure.mark("çeviri modeli hazır")
             } catch (error: Exception) {
                 Log.w(TAG, "ML Kit model", error)
                 LiveState.update { it.copy(error = getString(R.string.error_model)) }
@@ -336,6 +341,7 @@ class TranslationService : Service() {
             FramePreview.offer(image, now)
         }
         val onState: (SessionState) -> Unit = { state ->
+            Measure.mark("durum: ${describe(state)}")
             streaming = state == SessionState.Streaming
             if (!streaming) {
                 PlayedGame.consoleReported(null)
@@ -426,6 +432,7 @@ class TranslationService : Service() {
             lastWaitMs = (started - capturedAt).toInt()
             val result = if (reused) synchronized(readLock) { lastReading } else reader.read(pixels)
             val ocrMs = if (reused) lastOcrMs else (com.couchsubs.mobile.core.monotonicClock() - started).toInt()
+            if (!reused && ocrMs != null) Measure.ocr(reader.lastMode, reader.lastWidth, reader.lastHeight, ocrMs, result.lines.size)
             synchronized(readLock) {
                 // Paralel okumada eski karenin okuması yenisinden sonra bitebilir: hat geriye gitmesin.
                 if (capturedAt < lastProcessedAt) return
