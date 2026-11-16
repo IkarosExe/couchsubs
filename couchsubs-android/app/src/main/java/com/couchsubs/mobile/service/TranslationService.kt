@@ -115,6 +115,7 @@ class TranslationService : Service() {
     private val readLock = Any()
     /** Hatta en son işlenen karenin alındığı an; daha eski karenin geç biten okuması atılır. */
     private var lastProcessedAt = 0L
+    private var lastFrameCount = 0L
     private var lastRead = 0L
     private var lastSignature = 0L
     private var lastReading = com.couchsubs.mobile.core.Reading.Empty
@@ -387,7 +388,19 @@ class TranslationService : Service() {
             source.start()
         }
         background.scheduleWithFixedDelay({
-            session?.let { s -> LiveState.update { it.copy(framesReceived = s.framesReceived) } }
+            session?.let { s ->
+                val frames = s.framesReceived
+                val fps = ((frames - lastFrameCount).coerceAtLeast(0) / 2.0)
+                lastFrameCount = frames
+                val path = when ((s as? com.couchsubs.mobile.remoteplay.StreamSession)?.gpuActive) {
+                    true -> "GPU"
+                    false -> "CPU"
+                    null -> "-"
+                }
+                val area = readers.peek()?.lastAreaPercent
+                val diag = "Görüntü: $path · %.0f kare/sn".format(fps) + (area?.let { " · OCR alanı %$it" } ?: "")
+                LiveState.update { it.copy(framesReceived = frames, diagnostics = diag) }
+            }
         }, 2, 2, TimeUnit.SECONDS)
     }
 

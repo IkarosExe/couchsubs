@@ -35,6 +35,8 @@ data class LiveStatus(
     val game: String? = null,
     /** "Hangi oyunu oynuyorsunuz?" kartı açık. */
     val askingGame: Boolean = false,
+    /** Tanı satırı (IkarosExe fork'u, TV): görüntü yolu, OCR'a giden alan, kare hızı. */
+    val diagnostics: String = "",
 ) {
     /**
      * Sunucunun olayı telefon ekranına: yeni satır öncekini üste iter; aynı cümlenin uzamış ya da düzelmiş okuması

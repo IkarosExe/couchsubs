@@ -24,6 +24,8 @@ class SubtitleReader(
     private val cropToText: Boolean = false,
 ) : AutoCloseable {
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+    /** Tanı: son okumada OCR'a giden alanın bölgeye oranı (%); şerit yoksa ya da tam okunduysa 100. */
+    @Volatile var lastAreaPercent = 100
 
     companion object {
         /** YUV_420_888 karenin bölgesini NV21 gri görüntüye kopyalar (en ve boy çift sayıya yuvarlanır). */
@@ -66,6 +68,7 @@ class SubtitleReader(
                 // Bölgede parlak yazı bulunamadıysa (band boş) okuma atlanmaz: boş okumalar kararlılayıcıya "altyazı kalktı"
                 // dedirtip soluk yazılı satırların hiç gösterilmemesine yol açıyordu. Bölgenin tamamı okunur.
                 if (band.width > 0) {
+                    lastAreaPercent = (100L * band.width * band.height / (pixels.width.toLong() * pixels.height)).toInt()
                     val reading = recognize(TextBand.crop(pixels.nv21, pixels.width, band), band.width, band.height,
                         band, pixels.width, pixels.height)
                     // Şeritte yazı çıkmadıysa şerit yanlış yerdedir: bölgenin tamamı okunur (asla eskisinden kötü değil).
@@ -73,6 +76,7 @@ class SubtitleReader(
                 }
             }
         }
+        lastAreaPercent = 100
         return recognize(pixels.nv21, pixels.width, pixels.height, null, pixels.width, pixels.height)
     }
 

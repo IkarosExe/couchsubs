@@ -216,6 +216,7 @@ private fun RunningScreen(status: LiveStatus, topBar: @Composable () -> Unit, on
             status.packInUse?.let { Pill(stringResource(R.string.running_pack, it), pro = true) }
         }
         Text(status.phase, style = Tokens.Type.caption, color = Tokens.Color.secondary)
+        if (status.diagnostics.isNotEmpty()) Text(status.diagnostics, style = Tokens.Type.caption, color = Tokens.Color.secondary)
         status.error?.let { NoteTile(it) }
         GameSection(status)
         val current = status.recent.firstOrNull()

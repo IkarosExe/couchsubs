@@ -240,6 +240,8 @@ class StreamSession(
     private var nativeGeneration = 0
     private var reader: ImageReader? = null
     private var bridge: GlFrameBridge? = null
+    /** Tanı (IkarosExe fork'u): kareler GPU yolundan mı geliyor. */
+    val gpuActive: Boolean get() = bridge != null
 
     override fun start() {
         val current = bump(true)
