@@ -60,7 +60,6 @@ import com.couchsubs.mobile.ui.MainActivity
 import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Çeviri sürerken çalışan ön plan hizmeti (kalıcı bildirimle): PS5 oturumu → kare → yazı tanıma → paket/çeviri →
@@ -103,13 +102,19 @@ class TranslationService : Service() {
     @Volatile private var session: FrameSource? = null
     @Volatile private var server: SubtitleServer? = null
     @Volatile private var pipeline: SubtitlePipeline? = null
-    @Volatile private var reader: SubtitleReader? = null
+    /** Boştaki okuyucular (TV'de iki okuma üst üste biner; IkarosExe fork'u). */
+    private val readers = java.util.concurrent.LinkedBlockingQueue<SubtitleReader>()
     @Volatile private var pool: LinePool? = null
     @Volatile private var freeTranslator: MlKitTranslator? = null
     @Volatile private var packs: GamePackLibrary? = null
-    private val ocr = Executors.newSingleThreadExecutor { Thread(it, "CouchSubs OCR").apply { isDaemon = true } }
+    private val ocr = Executors.newFixedThreadPool(2) { Thread(it, "CouchSubs OCR").apply { isDaemon = true } }
     private val background = Executors.newSingleThreadScheduledExecutor { Thread(it, "CouchSubs background").apply { isDaemon = true } }
-    private val reading = AtomicBoolean(false)
+    private val inFlight = java.util.concurrent.atomic.AtomicInteger(0)
+    /** Aynı anda en çok kaç okuma (TV'de 2: yeni altyazı önceki okumanın bitmesini beklemez). */
+    @Volatile private var parallelReads = 1
+    private val readLock = Any()
+    /** Hatta en son işlenen karenin alındığı an; daha eski karenin geç biten okuması atılır. */
+    private var lastProcessedAt = 0L
     private var lastRead = 0L
     private var lastSignature = 0L
     private var lastReading = com.couchsubs.mobile.core.Reading.Empty
@@ -261,7 +266,10 @@ class TranslationService : Service() {
             null
         }
         Backend.breadcrumb("çeviri: paketler ${packTitles?.size ?: "yok"}")
-        reader = SubtitleReader()
+        readers.clear()
+        parallelReads = if (isTvDevice()) 2 else 1
+        repeat(parallelReads) { readers.add(SubtitleReader(cropToText = isTvDevice())) }
+        lastProcessedAt = 0L
         pipeline =SubtitlePipeline(translator, subtitleServer).apply {
             packLookup = { text -> if (packTitles != null && settings.packsEnabled) PackLookup.match(library, text) else null }
             onPackMissed = { text -> linePool.offer(text) }
@@ -297,13 +305,16 @@ class TranslationService : Service() {
 
         val onFrame: (android.media.Image) -> Unit = { image ->
             val now = System.currentTimeMillis()
-            if (!reading.get() && now - lastRead >= 1000 / MAX_READS_PER_SECOND) {
+            // Okumalar arası en az 1/MAX_READS_PER_SECOND; paralel okumada okuma süresinin yarısı kadar aralıkla
+            // başlatılır ki yeni altyazı en çok yarım okuma süresi beklesin.
+            val gap = maxOf(1000L / MAX_READS_PER_SECOND, (lastOcrMs ?: 0).toLong() / parallelReads)
+            if (inFlight.get() < parallelReads && now - lastRead >= gap) {
                 val area = region
                 // Karenin geldiği an: gecikme buradan TV'ye gidene kadar ölçülür (hattın saatiyle).
                 val capturedAt = com.couchsubs.mobile.core.monotonicClock()
                 SubtitleReader.copyRegion(image, area)?.let { pixels ->
                     lastRead = now
-                    reading.set(true)
+                    inFlight.incrementAndGet()
                     ocr.execute { read(pixels, area, capturedAt) }
                 }
             }
@@ -377,23 +388,31 @@ class TranslationService : Service() {
     }
 
     private fun read(pixels: RegionPixels, area: CropRegion, capturedAt: Long) {
+        val reader = readers.poll()
         try {
             // Bölge değişmediyse (aynı altyazı duruyor) yeniden okunmaz; son okuma hattı yine besler (kararlılık ve
             // silme saate bağlıdır, Windows'taki ReadScheduler gibi).
             val current = pipeline ?: return
-            val reused = pixels.signature == lastSignature
+            reader ?: return
+            val reused = synchronized(readLock) { pixels.signature == lastSignature }
             val started = com.couchsubs.mobile.core.monotonicClock()
-            val result = if (reused) lastReading else reader?.read(pixels) ?: return
+            val result = if (reused) synchronized(readLock) { lastReading } else reader.read(pixels)
             val ocrMs = if (reused) lastOcrMs else (com.couchsubs.mobile.core.monotonicClock() - started).toInt()
-            lastSignature = pixels.signature
-            lastReading = result
-            lastOcrMs = ocrMs
-            current.process(result, area.box, com.couchsubs.mobile.core.RegionSignature.of(pixels.nv21, pixels.width, pixels.height),
-                capturedAt, ocrMs)
+            synchronized(readLock) {
+                // Paralel okumada eski karenin okuması yenisinden sonra bitebilir: hat geriye gitmesin.
+                if (capturedAt < lastProcessedAt) return
+                lastProcessedAt = capturedAt
+                lastSignature = pixels.signature
+                lastReading = result
+                lastOcrMs = ocrMs
+                current.process(result, area.box, com.couchsubs.mobile.core.RegionSignature.of(pixels.nv21, pixels.width, pixels.height),
+                    capturedAt, ocrMs)
+            }
         } catch (error: Exception) {
             Log.w(TAG, "OCR", error)
         } finally {
-            reading.set(false)
+            reader?.let(readers::offer)
+            inFlight.decrementAndGet()
         }
     }
 
@@ -517,8 +536,7 @@ class TranslationService : Service() {
         liveServer = null
         server?.stop()
         server = null
-        reader?.close()
-        reader = null
+        generateSequence { readers.poll() }.forEach { it.close() }
         freeTranslator?.close()
         freeTranslator = null
         pool?.let { linePool -> Thread { linePool.flush() }.start() }

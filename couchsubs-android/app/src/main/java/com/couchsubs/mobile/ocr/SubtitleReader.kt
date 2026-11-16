@@ -19,8 +19,14 @@ class RegionPixels(val nv21: ByteArray, val width: Int, val height: Int, val sig
  * Altyazı bölgesini Google ML Kit (cihaz üstü, Latin modeli uygulamayla gelir) ile okur. Renk gerekmez: yalnız parlaklık
  * düzlemi kopyalanır, renk düzlemleri nötr (128) bırakılır; bu hem hızlıdır hem beyaz/sarı altyazıyı aynı okur.
  */
-class SubtitleReader : AutoCloseable {
+class SubtitleReader(
+    /** TV (IkarosExe fork'u): yalnız yazı şeridi okunur, yazı yoksa okuma atlanır (bkz. [TextBand]). */
+    private val cropToText: Boolean = false,
+) : AutoCloseable {
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+    /** Şerit bulunamayınca okuma atlanır; yine de en geç bu kadar sürede bir bölgenin tamamı okunur (soluk yazı kaçmasın). */
+    private val fullReadMs = 1500L
+    @Volatile private var lastFullRead = 0L
 
     companion object {
         /** YUV_420_888 karenin bölgesini NV21 gri görüntüye kopyalar (en ve boy çift sayıya yuvarlanır). */
@@ -57,15 +63,35 @@ class SubtitleReader : AutoCloseable {
 
     /** Bölgeyi okur (bloklar; okuma iş parçacığında çağrılır). Satır kutuları bölgeye oranladır. */
     fun read(pixels: RegionPixels): Reading {
-        val input = InputImage.fromByteArray(pixels.nv21, pixels.width, pixels.height, 0, InputImage.IMAGE_FORMAT_NV21)
+        if (cropToText) {
+            val band = TextBand.find(pixels.nv21, pixels.width, pixels.height)
+            if (band != null) {
+                if (band.width == 0) {
+                    // Bölgede altyazıya benzer parlak yazı yok.
+                    if (android.os.SystemClock.elapsedRealtime() - lastFullRead < fullReadMs) return Reading.Empty
+                } else {
+                    return recognize(TextBand.crop(pixels.nv21, pixels.width, band), band.width, band.height,
+                        band, pixels.width, pixels.height)
+                }
+            }
+        }
+        lastFullRead = android.os.SystemClock.elapsedRealtime()
+        return recognize(pixels.nv21, pixels.width, pixels.height, null, pixels.width, pixels.height)
+    }
+
+    /** [band] verildiyse görüntü bölgenin o şerididir; kutular bölgenin tamamına göre hesaplanır. */
+    private fun recognize(nv21: ByteArray, width: Int, height: Int, band: Band?, regionWidth: Int, regionHeight: Int): Reading {
+        val input = InputImage.fromByteArray(nv21, width, height, 0, InputImage.IMAGE_FORMAT_NV21)
         val text = Tasks.await(recognizer.process(input), 5, TimeUnit.SECONDS)
+        val offsetX = band?.left ?: 0
+        val offsetY = band?.top ?: 0
         val lines = mutableListOf<TextLine>()
         for (block in text.textBlocks) {
             for (line in block.lines) {
                 val box = line.boundingBox?.let {
                     TextBox(
-                        it.left.toDouble() / pixels.width, it.top.toDouble() / pixels.height,
-                        it.right.toDouble() / pixels.width, it.bottom.toDouble() / pixels.height,
+                        (offsetX + it.left).toDouble() / regionWidth, (offsetY + it.top).toDouble() / regionHeight,
+                        (offsetX + it.right).toDouble() / regionWidth, (offsetY + it.bottom).toDouble() / regionHeight,
                     )
                 }
                 lines.add(TextLine(line.text, box))
