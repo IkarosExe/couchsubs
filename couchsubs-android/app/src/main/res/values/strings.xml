@@ -386,4 +386,11 @@
     <string name="overlay_running">Altyazı TV\'nin HDMI görüntüsünün üstünde gösteriliyor</string>
     <string name="overlay_choose_input">TV\'yi kumandayla PS5\'in girişine (HDMI %1$d) geçir. Altyazı üstte görünecek.</string>
     <string name="overlay_permission_toast">Altyazının oyunun üstünde görünmesi için \"Diğer uygulamaların üzerinde göster\" izni gerekiyor.</string>
+    <!-- TV'de telefonla PSN girişi (IkarosExe fork'u). -->
+    <string name="psn_phone_open">Telefonla giriş yap</string>
+    <string name="psn_phone_tv_instead">Bu TV\'de giriş yap (kumandayla)</string>
+    <string name="psn_phone_title">Telefonla giriş</string>
+    <string name="psn_phone_body">Telefonun bu TV ile aynı Wi-Fi ağında olsun. Telefonun tarayıcısında (Safari, Chrome) aşağıdaki adresi aç ve sayfadaki adımları izle. Giriş bitince TV kendiliğinden devam eder.</string>
+    <string name="psn_phone_waiting">Telefondan giriş bekleniyor…</string>
+    <string name="psn_phone_failed">TV\'nin ağ adresi bulunamadı ya da bağlantı açılamadı. TV\'nin ağa bağlı olduğundan emin ol ya da \"Bu TV\'de giriş yap\" ile devam et.</string>
 </resources>

@@ -56,7 +56,7 @@ private fun GameAskCard() {
         Column {
             suggestions.forEachIndexed { index, name ->
                 if (index > 0) HorizontalDivider(color = Tokens.Color.border)
-                Row(Modifier.fillMaxWidth().clickable { PlayedGame.choose(name) }.padding(vertical = Tokens.Space.gap),
+                Row(Modifier.fillMaxWidth().remoteFocus().clickable { PlayedGame.choose(name) }.padding(vertical = Tokens.Space.gap),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Tokens.Space.gap)) {
                     Text(name, style = Tokens.Type.body, color = Tokens.Color.text, modifier = Modifier.weight(1f))
                     if (name == last) Text(stringResource(R.string.game_last_played), style = Tokens.Type.caption, color = Tokens.Color.secondary)

@@ -46,6 +46,11 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.composed
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -159,6 +164,16 @@ fun ScreenBackground(content: @Composable BoxScope.() -> Unit) {
     Box(Modifier.fillMaxSize().background(Tokens.Color.bg), content = content)
 }
 
+/**
+ * Kumanda (D-pad) odağı görünür olsun: odaktaki öğenin çevresine kalın beyaz çerçeve çizer (IkarosExe fork'u, TV).
+ * Dokunmatik ekranda odak olmadığı için telefonda hiçbir şey değişmez. Tıklanabilir modifier'dan ÖNCE eklenmeli.
+ */
+fun Modifier.remoteFocus(shape: Shape = RoundedCornerShape(Tokens.Radius.control)): Modifier = composed {
+    var focused by remember { mutableStateOf(false) }
+    this.onFocusChanged { focused = it.hasFocus }
+        .then(if (focused) Modifier.border(3.dp, Color.White, shape) else Modifier)
+}
+
 enum class TileStyle { NORMAL, ACTIVE }
 
 /** Karo: düz yüzey ve 1 px çerçeve; etkin (seçili) karo 1 px sarı çerçeveyle belli olur, parlamaz. */
@@ -170,6 +185,7 @@ fun Tile(modifier: Modifier = Modifier, style: TileStyle = TileStyle.NORMAL, onC
     val pressed by interaction.collectIsPressedAsState()
     Column(
         modifier.scale(if (pressed) 0.97f else 1f)
+            .let { if (onClick != null) it.remoteFocus(shape) else it }
             .background(Tokens.Color.surface, shape)
             .border(1.dp, border, shape)
             .let { if (onClick != null) it.clickable(interactionSource = interaction, indication = null, onClick = onClick) else it }
@@ -193,7 +209,7 @@ fun PrimaryButton(text: String, modifier: Modifier = Modifier, enabled: Boolean 
         colors = ButtonDefaults.buttonColors(containerColor = if (pressed) Tokens.Color.accentHi else Tokens.Color.accent,
             contentColor = Tokens.Color.onAccent, disabledContainerColor = Tokens.Color.accent.copy(alpha = 0.4f),
             disabledContentColor = Tokens.Color.onAccent.copy(alpha = 0.4f)),
-        modifier = modifier.fillMaxWidth().height(Tokens.Control.button).scale(if (pressed) 0.97f else 1f),
+        modifier = modifier.remoteFocus().fillMaxWidth().height(Tokens.Control.button).scale(if (pressed) 0.97f else 1f),
     ) { Text(text, style = Tokens.Type.headline) }
 }
 
@@ -201,12 +217,12 @@ fun PrimaryButton(text: String, modifier: Modifier = Modifier, enabled: Boolean 
 fun SecondaryButton(text: String, modifier: Modifier = Modifier, enabled: Boolean = true, onClick: () -> Unit) {
     Button(onClick, enabled = enabled, shape = RoundedCornerShape(Tokens.Radius.control), border = BorderStroke(1.dp, Tokens.Color.borderStrong),
         colors = ButtonDefaults.buttonColors(containerColor = Tokens.Color.surface2, contentColor = Tokens.Color.text), elevation = null,
-        modifier = modifier.fillMaxWidth().height(Tokens.Control.button)) { Text(text, style = Tokens.Type.headline) }
+        modifier = modifier.remoteFocus().fillMaxWidth().height(Tokens.Control.button)) { Text(text, style = Tokens.Type.headline) }
 }
 
 @Composable
 fun GhostButton(text: String, modifier: Modifier = Modifier, color: Color = Tokens.Color.accentText, onClick: () -> Unit) {
-    TextButton(onClick, modifier = modifier.height(Tokens.Control.buttonSmall)) { Text(text, style = Tokens.Type.headline, color = color) }
+    TextButton(onClick, modifier = modifier.remoteFocus().height(Tokens.Control.buttonSmall)) { Text(text, style = Tokens.Type.headline, color = color) }
 }
 
 /** Tehlikeli: kırmızı tonlu zemin, kırmızı yazı, çerçevesiz ("Çeviriyi durdur"). */
@@ -214,13 +230,13 @@ fun GhostButton(text: String, modifier: Modifier = Modifier, color: Color = Toke
 fun DestructiveButton(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Button(onClick, shape = RoundedCornerShape(Tokens.Radius.control), elevation = null,
         colors = ButtonDefaults.buttonColors(containerColor = Tokens.Color.dangerSoft, contentColor = Tokens.Color.danger),
-        modifier = modifier.fillMaxWidth().height(Tokens.Control.button)) { Text(text, style = Tokens.Type.headline) }
+        modifier = modifier.remoteFocus().fillMaxWidth().height(Tokens.Control.button)) { Text(text, style = Tokens.Type.headline) }
 }
 
 @Composable
 fun IconSquare(label: String, modifier: Modifier = Modifier, onClick: () -> Unit, content: @Composable () -> Unit) {
     Box(
-        modifier.size(Tokens.Control.icon).background(Tokens.Color.surface2, RoundedCornerShape(Tokens.Radius.control))
+        modifier.size(Tokens.Control.icon).remoteFocus().background(Tokens.Color.surface2, RoundedCornerShape(Tokens.Radius.control))
             .border(1.dp, Tokens.Color.border, RoundedCornerShape(Tokens.Radius.control))
             .clickable(onClickLabel = label, onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -329,7 +345,7 @@ fun BodyText(text: String, color: Color = Tokens.Color.secondary, align: TextAli
 @Composable
 fun RowItem(title: String, value: String? = null, onClick: (() -> Unit)? = null, trailing: (@Composable () -> Unit)? = null) {
     Row(
-        Modifier.fillMaxWidth().heightIn(min = Tokens.Control.row).let { if (onClick != null) it.clickable(onClick = onClick) else it }
+        Modifier.fillMaxWidth().heightIn(min = Tokens.Control.row).let { if (onClick != null) it.remoteFocus().clickable(onClick = onClick) else it }
             .padding(vertical = Tokens.Space.hair),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Tokens.Space.gap),

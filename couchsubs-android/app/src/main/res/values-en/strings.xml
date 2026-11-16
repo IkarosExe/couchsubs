@@ -378,4 +378,11 @@
     <string name="overlay_running">Showing subtitles over the TV\'s HDMI picture</string>
     <string name="overlay_choose_input">Switch the TV to the PS5\'s input (HDMI %1$d) with the remote. Subtitles will appear on top.</string>
     <string name="overlay_permission_toast">Subtitles over the game need the \"Display over other apps\" permission.</string>
+    <!-- PSN sign-in from a phone on TV (IkarosExe fork). -->
+    <string name="psn_phone_open">Sign in with your phone</string>
+    <string name="psn_phone_tv_instead">Sign in on this TV (with the remote)</string>
+    <string name="psn_phone_title">Sign in with your phone</string>
+    <string name="psn_phone_body">Make sure your phone is on the same Wi-Fi as this TV. Open the address below in your phone\'s browser and follow the steps on the page. The TV continues on its own when you\'re done.</string>
+    <string name="psn_phone_waiting">Waiting for sign-in from your phone…</string>
+    <string name="psn_phone_failed">Couldn\'t find the TV\'s network address or open the connection. Check the TV is online, or continue with \"Sign in on this TV\".</string>
 </resources>

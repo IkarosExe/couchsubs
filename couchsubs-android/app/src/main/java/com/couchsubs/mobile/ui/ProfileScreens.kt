@@ -215,6 +215,7 @@ fun SettingsScreen(onBack: () -> Unit, onPacks: () -> Unit, onTarget: () -> Unit
                     val swatch = if (option == SubtitleTextColor.YELLOW) Tokens.Color.accent else Tokens.Color.text
                     Box(Modifier.size(32.dp).background(swatch, CircleShape)
                         .border(2.dp, if (color == option) Tokens.Color.accent else Tokens.Color.borderStrong, CircleShape)
+                        .remoteFocus(CircleShape)
                         .clickable { color = option; settings.textColor = option })
                 }
             }

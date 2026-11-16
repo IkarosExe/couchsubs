@@ -160,6 +160,7 @@ fun Segmented(options: List<String>, selected: Int, onSelect: (Int) -> Unit) {
             Box(
                 Modifier.weight(1f).height(36.dp)
                     .background(if (on) Tokens.Color.raised else Color.Transparent, RoundedCornerShape(Tokens.Radius.inner))
+                    .remoteFocus(RoundedCornerShape(Tokens.Radius.inner))
                     .clickable { onSelect(index) },
                 contentAlignment = Alignment.Center,
             ) {

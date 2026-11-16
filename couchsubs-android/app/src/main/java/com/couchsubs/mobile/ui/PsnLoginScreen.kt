@@ -8,6 +8,7 @@ import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
 import android.net.http.SslError
@@ -44,6 +45,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -65,6 +67,7 @@ import com.couchsubs.mobile.Services
 import com.couchsubs.mobile.remoteplay.PsnAccount
 import com.couchsubs.mobile.remoteplay.PsnLoadWatch
 import com.couchsubs.mobile.remoteplay.PsnPageProblem
+import com.couchsubs.mobile.remoteplay.PsnPhoneLink
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -76,7 +79,7 @@ import kotlin.coroutines.resume
 
 private const val TAG = "CouchSubsPsn"
 
-private enum class PsnMode { INTRO, WEB, BROWSER }
+private enum class PsnMode { INTRO, WEB, BROWSER, PHONE }
 
 @Composable
 fun PsnLoginScreen(onBack: (() -> Unit)? = null, onSkip: (() -> Unit)? = null, onDone: () -> Unit) {
@@ -85,6 +88,8 @@ fun PsnLoginScreen(onBack: (() -> Unit)? = null, onSkip: (() -> Unit)? = null, o
     var why by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    // TV'de (kumandayla) Sony'nin formunu doldurmak zor: giriş telefondan yapılır (IkarosExe fork'u).
+    val onTv = remember { context.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK) }
 
     // Yönlendirme (uygulama içinden ya da tarayıcıdan yapıştırılan) hesap kimliğine çevrilir.
     fun finish(redirect: String) {
@@ -109,10 +114,21 @@ fun PsnLoginScreen(onBack: (() -> Unit)? = null, onSkip: (() -> Unit)? = null, o
     when (mode) {
         PsnMode.INTRO -> {
             ScreenScaffold(top = { TopBar(onBack = onBack) { SkipAction(onSkip) } }, bottom = {
-                GhostButton(stringResource(R.string.psn_why)) { why = true }
-                PrimaryButton(stringResource(R.string.psn_open)) {
-                    problem = null
-                    mode = PsnMode.WEB
+                if (onTv) {
+                    PrimaryButton(stringResource(R.string.psn_phone_open)) {
+                        problem = null
+                        mode = PsnMode.PHONE
+                    }
+                    GhostButton(stringResource(R.string.psn_phone_tv_instead)) {
+                        problem = null
+                        mode = PsnMode.WEB
+                    }
+                } else {
+                    GhostButton(stringResource(R.string.psn_why)) { why = true }
+                    PrimaryButton(stringResource(R.string.psn_open)) {
+                        problem = null
+                        mode = PsnMode.WEB
+                    }
                 }
             }) {
                 Heading(stringResource(R.string.psn_title), stringResource(R.string.psn_body), stringResource(R.string.setup_step, 1))
@@ -140,6 +156,11 @@ fun PsnLoginScreen(onBack: (() -> Unit)? = null, onSkip: (() -> Unit)? = null, o
             onRedirect = ::finish,
             onClose = { mode = PsnMode.INTRO },
             onBrowser = ::openBrowser,
+        )
+        PsnMode.PHONE -> PsnPhoneLogin(
+            onRedirect = ::finish,
+            onTvLogin = { mode = PsnMode.WEB },
+            onClose = { mode = PsnMode.INTRO },
         )
         PsnMode.BROWSER -> PsnBrowserLogin(
             onRedirect = ::finish,
@@ -235,6 +256,8 @@ private fun PsnWebLogin(onRedirect: (String) -> Unit, onClose: () -> Unit, onBro
                                 null
                             }?.apply {
                                 setBackgroundColor(background)
+                                isFocusable = true
+                                isFocusableInTouchMode = true
                                 settings.javaScriptEnabled = true
                                 settings.domStorageEnabled = true
                                 // Sony'nin girişi sonyentertainmentnetwork.com, sony.com ve playstation.com arasında gidip
@@ -259,7 +282,11 @@ private fun PsnWebLogin(onRedirect: (String) -> Unit, onClose: () -> Unit, onBro
                                         visible = false
                                         onRedirect(url)
                                     },
-                                    onVisible = { visible = true },
+                                    onVisible = {
+                                        visible = true
+                                        // Kumanda (TV): odak sayfaya geçsin ki ok tuşları formda gezinsin.
+                                        requestFocus()
+                                    },
                                     onFailure = ::fail,
                                     schedule = { delayMs, block -> scope.launch { delay(delayMs); block() } },
                                 )
@@ -427,6 +454,50 @@ private fun PsnBrowserLogin(onRedirect: (String) -> Unit, onReopen: () -> Unit, 
         Heading(stringResource(R.string.psn_browser_title), stringResource(R.string.psn_browser_body))
         Field(text, { text = it }, stringResource(R.string.psn_browser_field), keyboard = KeyboardOptions(keyboardType = KeyboardType.Uri))
         if (text.isNotBlank() && redirect == null) NoteTile(stringResource(R.string.psn_browser_wrong))
+    }
+}
+
+/**
+ * TV'de telefonla giriş (IkarosExe fork'u): TV yerel ağda küçük bir sayfa açar (PsnPhoneLink); telefonda o sayfadan
+ * Sony girişi yapılır, girişin bittiği adres sayfaya yapıştırılır ve TV hesabı kendisi alır.
+ */
+@Composable
+private fun PsnPhoneLogin(onRedirect: (String) -> Unit, onTvLogin: () -> Unit, onClose: () -> Unit) {
+    var address by remember { mutableStateOf<String?>(null) }
+    var failed by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    DisposableEffect(Unit) {
+        val link = PsnPhoneLink { url -> scope.launch(Dispatchers.Main) { onRedirect(url) } }
+        val starting = scope.launch {
+            try {
+                address = withContext(Dispatchers.IO) { link.start() }
+                if (address == null) failed = true
+            } catch (error: Exception) {
+                Log.w(TAG, "Telefon bağlantısı açılamadı", error)
+                failed = true
+            }
+        }
+        onDispose {
+            starting.cancel()
+            link.stop()
+        }
+    }
+    ScreenScaffold(top = { TopBar(onBack = onClose) }, bottom = {
+        GhostButton(stringResource(R.string.psn_phone_tv_instead), onClick = onTvLogin)
+    }) {
+        Heading(stringResource(R.string.psn_phone_title), stringResource(R.string.psn_phone_body))
+        Tile(Modifier.fillMaxWidth()) {
+            Text(
+                address ?: stringResource(R.string.psn_loading),
+                style = Tokens.Type.display, color = Tokens.Color.accentText,
+                textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        if (failed) NoteTile(stringResource(R.string.psn_phone_failed))
+        else Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Tokens.Space.gap)) {
+            CircularProgressIndicator(color = Tokens.Color.accent)
+            BodyText(stringResource(R.string.psn_phone_waiting))
+        }
     }
 }
 
