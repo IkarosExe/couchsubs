@@ -116,6 +116,11 @@ class TranslationService : Service() {
     /** Hatta en son işlenen karenin alındığı an; daha eski karenin geç biten okuması atılır. */
     private var lastProcessedAt = 0L
     private var lastFrameCount = 0L
+    /** Tanı (IkarosExe fork'u, TV): son okumanın kuyrukta beklediği süre, işlemci sayacı, tanı sayfası. */
+    @Volatile private var lastWaitMs = 0
+    private var lastCpuTicks = -1L
+    @Volatile private var diagServer: DiagServer? = null
+    private val diagAddress by lazy { com.couchsubs.mobile.remoteplay.PsnPhoneLink.lanAddress()?.let { "http://$it:${DiagServer.PORT}" } }
     private var lastRead = 0L
     private var lastSignature = 0L
     private var lastReading = com.couchsubs.mobile.core.Reading.Empty
@@ -249,6 +254,7 @@ class TranslationService : Service() {
             subtitleServer.sendStyle(settings.style)
             liveServer = subtitleServer
             if (isTvDevice()) startTvOverlay(port)
+            if (isTvDevice()) diagServer = DiagServer { diagnosticsSummary() }.takeIf { it.start() }
         } catch (error: Exception) {
             Log.e(TAG, "SSE server", error)
             LiveState.update { it.copy(error = getString(R.string.error_port)) }
@@ -398,7 +404,11 @@ class TranslationService : Service() {
                     null -> "-"
                 }
                 val area = readers.peek()?.lastAreaPercent
-                val diag = "Görüntü: $path · %.0f kare/sn".format(fps) + (area?.let { " · OCR alanı %$it" } ?: "")
+                val cpu = cpuPercent()
+                val diag = "Görüntü: $path · %.0f kare/sn".format(fps) + (area?.let { " · OCR alanı %$it" } ?: "") +
+                    " · bekleme $lastWaitMs ms" + (cpu?.let { " · işlemci %$it" } ?: "") +
+                    (if (diagServer != null) diagAddress?.let { " · tanı: $it" } ?: "" else "")
+                Log.i(TAG, "Tanı: $diag")
                 LiveState.update { it.copy(framesReceived = frames, diagnostics = diag) }
             }
         }, 2, 2, TimeUnit.SECONDS)
@@ -413,6 +423,7 @@ class TranslationService : Service() {
             reader ?: return
             val reused = synchronized(readLock) { pixels.signature == lastSignature }
             val started = com.couchsubs.mobile.core.monotonicClock()
+            lastWaitMs = (started - capturedAt).toInt()
             val result = if (reused) synchronized(readLock) { lastReading } else reader.read(pixels)
             val ocrMs = if (reused) lastOcrMs else (com.couchsubs.mobile.core.monotonicClock() - started).toInt()
             synchronized(readLock) {
@@ -497,6 +508,42 @@ class TranslationService : Service() {
         EngineChoice.CLAUDE -> "Claude"
     }
 
+    /**
+     * Uygulamanın son ölçümden beri kullandığı işlemci, bütün çekirdeklerin yüzdesi olarak (/proc/self/stat: utime+stime,
+     * saat tıkı 100 Hz). Okunamazsa null.
+     */
+    private fun cpuPercent(): Int? = try {
+        val fields = java.io.File("/proc/self/stat").readText().substringAfterLast(')').trim().split(' ')
+        // ')' sonrası alanlar: [0]=durum ... utime=[11], stime=[12]
+        val ticks = fields[11].toLong() + fields[12].toLong()
+        val previous = lastCpuTicks
+        lastCpuTicks = ticks
+        if (previous < 0) null
+        else ((ticks - previous) * 100 / (2 * 100 * Runtime.getRuntime().availableProcessors())).toInt()
+    } catch (error: Exception) {
+        null
+    }
+
+    /** Tanı sayfasının özeti: durum satırı, son satırın ölçümleri ve ayarlar. */
+    private fun diagnosticsSummary(): String {
+        val status = LiveState.status.value
+        val last = status.recent.firstOrNull()
+        return buildString {
+            append("Sürüm: ").append(BuildConfig.VERSION_NAME).append('\n')
+            append("Durum: ").append(status.phase).append('\n')
+            append("Tanı: ").append(status.diagnostics).append('\n')
+            append("Kare: ").append(status.framesReceived).append('\n')
+            last?.let {
+                append("Son satır: ").append(it.source).append(" -> ").append(it.translation).append('\n')
+                append("OCR ").append(it.ocrMs).append(" ms, çeviri ").append(it.translationMs).append(" ms, gecikme ")
+                    .append(it.totalMs).append(" ms (").append(it.origin).append(")\n")
+            }
+            append("Alan: ").append(region).append('\n')
+            append("Motor: ").append(settings.engine).append(", HDMI: ").append(settings.tvHdmiPort)
+            append(", Android ").append(android.os.Build.VERSION.RELEASE).append(", ").append(android.os.Build.MODEL)
+        }
+    }
+
     /** Uygulama bir Android TV'de mi çalışıyor (IkarosExe fork'u: tek TV uygulaması). */
     private fun isTvDevice(): Boolean =
         packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
@@ -534,6 +581,8 @@ class TranslationService : Service() {
 
     /** Kurulan parçaları kapatır; onDestroy'dan ve hizmet kurulum bitmeden durdurulduysa kurulum iş parçacığından çağrılır. */
     private fun releaseParts() = synchronized(lifecycle) {
+        diagServer?.stop()
+        diagServer = null
         if (isTvDevice()) {
             try { OverlayService.stop(this) } catch (error: RuntimeException) { Log.w(TAG, "Overlay stop", error) }
         }
