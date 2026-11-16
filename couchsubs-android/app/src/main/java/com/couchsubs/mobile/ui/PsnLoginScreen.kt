@@ -115,11 +115,12 @@ fun PsnLoginScreen(onBack: (() -> Unit)? = null, onSkip: (() -> Unit)? = null, o
         PsnMode.INTRO -> {
             ScreenScaffold(top = { TopBar(onBack = onBack) { SkipAction(onSkip) } }, bottom = {
                 if (onTv) {
-                    PrimaryButton(stringResource(R.string.psn_phone_open)) {
+                    // Varsayılan: TV'de kumandayla giriş. Telefonla giriş isteğe bağlı kolaylık.
+                    GhostButton(stringResource(R.string.psn_phone_open)) {
                         problem = null
                         mode = PsnMode.PHONE
                     }
-                    GhostButton(stringResource(R.string.psn_phone_tv_instead)) {
+                    PrimaryButton(stringResource(R.string.psn_open)) {
                         problem = null
                         mode = PsnMode.WEB
                     }
