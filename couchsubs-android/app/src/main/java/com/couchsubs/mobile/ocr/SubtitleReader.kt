@@ -84,7 +84,8 @@ class SubtitleReader(
                     // FULL_READ_MAX_WIDTH'e küçültülür: ML Kit'in süresi enle artıyor (1348 px şerit ~1100 ms, 960 px
                     // tam bölge ~725 ms; TV ölçümü 2026-11-16).
                     val reading = try {
-                        if (band.height < SMALL_BAND) {
+                        // Büyütme yalnız dar şeritte: 1948 px'e büyütülen şerit 1,5 sn sürüyordu (ölçüm, 2026-11-16).
+                        if (band.height < SMALL_BAND && band.width <= 700) {
                             recognize(TextBand.cropScaled(pixels.nv21, pixels.width, band, 2),
                                 band.width * 2, band.height * 2, band, pixels.width, pixels.height, 2.0)
                         } else if (band.width > FULL_READ_MAX_WIDTH && band.height * FULL_READ_MAX_WIDTH / band.width >= SMALL_BAND) {
