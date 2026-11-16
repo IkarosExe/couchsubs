@@ -254,8 +254,13 @@ private fun RunningScreen(status: LiveStatus, topBar: @Composable () -> Unit, on
             } },
             { Tile(it) {
                 TileLabel(stringResource(R.string.main_tvs_label))
-                Text(if (Services.settings.target == SubtitleTarget.TV) status.connectedTvs.toString() else stringResource(R.string.main_target_phone),
-                    style = Tokens.Type.title, color = Tokens.Color.text)
+                // Tek TV uygulaması (IkarosExe fork'u): TV'nin kendisinde "bu TV" ve katmanın bağlı olup olmadığı.
+                val onTv = LocalContext.current.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK)
+                Text(when {
+                    onTv -> stringResource(if (status.connectedTvs > 0) R.string.main_this_tv_on else R.string.main_this_tv_waiting)
+                    Services.settings.target == SubtitleTarget.TV -> status.connectedTvs.toString()
+                    else -> stringResource(R.string.main_target_phone)
+                }, style = Tokens.Type.title, color = Tokens.Color.text)
             } },
         )
     }

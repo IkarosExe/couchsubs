@@ -385,4 +385,8 @@
     <string name="psn_phone_body">Make sure your phone is on the same Wi-Fi as this TV. Open the address below in your phone\'s browser and follow the steps on the page. The TV continues on its own when you\'re done.</string>
     <string name="psn_phone_waiting">Waiting for sign-in from your phone…</string>
     <string name="psn_phone_failed">Couldn\'t find the TV\'s network address or open the connection. Check the TV is online, or continue with \"Sign in on this TV\".</string>
+    <string name="target_this_tv">This TV</string>
+    <string name="target_this_tv_body">When translation starts, the TV switches to the PS5\'s input and subtitles appear over the game. No need to look for other TVs.</string>
+    <string name="main_this_tv_on">This TV ✓</string>
+    <string name="main_this_tv_waiting">This TV</string>
 </resources>

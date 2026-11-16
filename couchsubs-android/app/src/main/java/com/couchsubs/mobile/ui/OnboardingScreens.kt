@@ -240,6 +240,29 @@ fun TargetScreen(onBack: (() -> Unit)? = null, onTvInstall: (() -> Unit)? = null
     val settings = Services.settings
     var target by remember { mutableStateOf(settings.target) }
     var tvs by remember { mutableStateOf<List<FoundTv>?>(null) }
+    // Tek TV uygulaması (IkarosExe fork'u): uygulama TV'nin kendisinde çalışıyorsa ağda başka TV aranmaz; altyazı bu
+    // TV'de, oyunun üstündeki katmanda gösterilir.
+    val onTv = remember { context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK) }
+    if (onTv) {
+        ScreenScaffold(top = { TopBar(onBack = onBack) }, bottom = {
+            PrimaryButton(stringResource(R.string.next_continue)) {
+                settings.target = SubtitleTarget.TV
+                settings.onboarded = true
+                onDone()
+            }
+        }) {
+            Heading(stringResource(R.string.target_title), null, if (onBack == null) stringResource(R.string.setup_step, 3) else null)
+            Tile(Modifier.fillMaxWidth(), style = TileStyle.ACTIVE) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Tokens.Space.inline)) {
+                    TileIcon(Icons.Filled.Home)
+                    Text(stringResource(R.string.target_this_tv), style = Tokens.Type.headline, color = Tokens.Color.text, modifier = Modifier.weight(1f))
+                    SelectedCheck()
+                }
+                Text(stringResource(R.string.target_this_tv_body), style = Tokens.Type.caption, color = Tokens.Color.secondary)
+            }
+        }
+        return
+    }
     LaunchedEffect(Unit) { tvs = withContext(Dispatchers.IO) { runCatching { TvDiscovery.search() }.getOrDefault(emptyList()) } }
     ScreenScaffold(top = { TopBar(onBack = onBack) }, bottom = {
         PrimaryButton(stringResource(R.string.next_continue)) {

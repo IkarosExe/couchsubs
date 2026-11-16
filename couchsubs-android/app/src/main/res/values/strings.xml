@@ -393,4 +393,8 @@
     <string name="psn_phone_body">Telefonun bu TV ile aynı Wi-Fi ağında olsun. Telefonun tarayıcısında (Safari, Chrome) aşağıdaki adresi aç ve sayfadaki adımları izle. Giriş bitince TV kendiliğinden devam eder.</string>
     <string name="psn_phone_waiting">Telefondan giriş bekleniyor…</string>
     <string name="psn_phone_failed">TV\'nin ağ adresi bulunamadı ya da bağlantı açılamadı. TV\'nin ağa bağlı olduğundan emin ol ya da \"Bu TV\'de giriş yap\" ile devam et.</string>
+    <string name="target_this_tv">Bu TV</string>
+    <string name="target_this_tv_body">Çeviri başlayınca TV, PS5\'in girişine geçer ve altyazı oyunun üstünde görünür. Ağda başka TV aramaya gerek yok.</string>
+    <string name="main_this_tv_on">Bu TV ✓</string>
+    <string name="main_this_tv_waiting">Bu TV</string>
 </resources>
