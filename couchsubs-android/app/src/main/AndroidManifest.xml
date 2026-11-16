@@ -32,7 +32,7 @@
         android:allowBackup="false"
         android:banner="@drawable/tv_banner"
         android:icon="@mipmap/icon"
-        android:label="CouchSubs"
+        android:label="IcarusTranslate"
         android:largeHeap="true"
         android:theme="@style/Theme.CouchSubs"
         android:usesCleartextTraffic="true">

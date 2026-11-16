@@ -47,7 +47,8 @@ android {
     ndkVersion '27.0.12077973'
 
     defaultConfig {
-        applicationId 'com.couchsubs.mobile'
+        // IkarosExe: kendi uygulamamız (CouchSubs'ın yanında ayrı kurulur). Kod paketi (namespace) com.couchsubs.mobile kalır.
+        applicationId 'com.icarus.translate'
         minSdk 26
         targetSdk 36
         // Masaüstü sürüm çizgisiyle aynı ad; kod beta numarasıdır ve her yayında artar. CI etiketten verebilir:
