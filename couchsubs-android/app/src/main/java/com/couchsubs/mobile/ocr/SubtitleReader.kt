@@ -24,9 +24,6 @@ class SubtitleReader(
     private val cropToText: Boolean = false,
 ) : AutoCloseable {
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-    /** Şerit bulunamayınca okuma atlanır; yine de en geç bu kadar sürede bir bölgenin tamamı okunur (soluk yazı kaçmasın). */
-    private val fullReadMs = 1500L
-    @Volatile private var lastFullRead = 0L
 
     companion object {
         /** YUV_420_888 karenin bölgesini NV21 gri görüntüye kopyalar (en ve boy çift sayıya yuvarlanır). */
@@ -66,16 +63,16 @@ class SubtitleReader(
         if (cropToText) {
             val band = TextBand.find(pixels.nv21, pixels.width, pixels.height)
             if (band != null) {
-                if (band.width == 0) {
-                    // Bölgede altyazıya benzer parlak yazı yok.
-                    if (android.os.SystemClock.elapsedRealtime() - lastFullRead < fullReadMs) return Reading.Empty
-                } else {
-                    return recognize(TextBand.crop(pixels.nv21, pixels.width, band), band.width, band.height,
+                // Bölgede parlak yazı bulunamadıysa (band boş) okuma atlanmaz: boş okumalar kararlılayıcıya "altyazı kalktı"
+                // dedirtip soluk yazılı satırların hiç gösterilmemesine yol açıyordu. Bölgenin tamamı okunur.
+                if (band.width > 0) {
+                    val reading = recognize(TextBand.crop(pixels.nv21, pixels.width, band), band.width, band.height,
                         band, pixels.width, pixels.height)
+                    // Şeritte yazı çıkmadıysa şerit yanlış yerdedir: bölgenin tamamı okunur (asla eskisinden kötü değil).
+                    if (reading.lines.isNotEmpty()) return reading
                 }
             }
         }
-        lastFullRead = android.os.SystemClock.elapsedRealtime()
         return recognize(pixels.nv21, pixels.width, pixels.height, null, pixels.width, pixels.height)
     }
 

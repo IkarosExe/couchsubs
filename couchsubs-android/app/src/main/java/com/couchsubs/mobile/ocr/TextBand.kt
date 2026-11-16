@@ -19,8 +19,6 @@ object TextBand {
      */
     private const val EDGE = 70
     private const val BRIGHT = 185
-    /** Satırlar arası bu kadar boşluk aynı şerit sayılır (iki satırlık altyazı). */
-    private const val ROW_GAP = 14
     private const val PAD_Y = 12
     private const val PAD_X = 16
     /** Şerit bölgenin bundan büyük kısmını kaplıyorsa kırpmanın faydası yok (doku yoğun sahne): bölgenin tamamı okunur. */
@@ -46,39 +44,19 @@ object TextBand {
         val threshold = maxOf(6, width / 64)
         var first = -1
         var last = -1
-        // En uzun ardışık (ROW_GAP boşluklu) satır kümesi; altyazı genelde en yoğun kümedir.
-        var bestStart = -1
-        var bestEnd = -1
-        var bestScore = 0L
-        var start = -1
-        var end = -1
-        var score = 0L
-        var gap = 0
         for (row in 0 until height) {
             if (rowEnergy[row] >= threshold) {
                 if (first < 0) first = row
                 last = row
-                if (start < 0 || gap > ROW_GAP) {
-                    if (start >= 0 && score > bestScore) { bestScore = score; bestStart = start; bestEnd = end }
-                    start = row
-                    score = 0
-                }
-                end = row
-                score += rowEnergy[row]
-                gap = 0
-            } else if (start >= 0) {
-                gap++
             }
         }
-        if (start >= 0 && score > bestScore) { bestScore = score; bestStart = start; bestEnd = end }
         if (first < 0) return Band(0, 0, 0, 0)
-        // Birden çok küme varsa (altyazı + doku), hepsini kapsayan şerit çok büyükse en yoğun küme alınır.
+        // Bütün yazı benzeri satırları kapsayan şerit. Çok büyükse (altyazının yanında parlak doku) kırpılmaz, bölgenin
+        // tamamı okunur. En yoğun kümeyi seçmek denendi: parlak gökyüzü/yaprak altyazının yerine seçilip altyazı hiç
+        // okunmuyordu (Horizon, 2026-11-16).
         var top = first
         var bottom = last + 1
-        if ((bottom - top) > height * MAX_FRACTION) {
-            top = bestStart
-            bottom = bestEnd + 1
-        }
+        if ((bottom - top) > height * MAX_FRACTION) return null
         top = maxOf(0, top - PAD_Y)
         bottom = minOf(height, bottom + PAD_Y)
 
