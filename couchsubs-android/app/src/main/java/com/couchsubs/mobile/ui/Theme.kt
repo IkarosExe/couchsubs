@@ -134,8 +134,32 @@ object Tokens {
     }
 }
 
+/**
+ * Uygulama bir Android TV'de mi (IkarosExe fork'u). TV'de arayüz telefonun büyütülmüş hali gibi görünmesin diye
+ * [CouchSubsTheme] yoğunluğu küçültür ve [ScreenScaffold] iki bölmeli TV düzenine geçer.
+ */
+@Composable
+fun isTv(): Boolean {
+    val context = LocalContext.current
+    return remember { context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK) }
+}
+
+/** TV'de her şey bu oranda küçülür: 1080p TV'de ~960 dp yerine ~1370 dp genişlik (Google TV ayarlarına yakın ölçek). */
+private const val TV_DENSITY_SCALE = 0.7f
+
 @Composable
 fun CouchSubsTheme(content: @Composable () -> Unit) {
+    if (isTv()) {
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        androidx.compose.runtime.CompositionLocalProvider(
+            androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(
+                density.density * TV_DENSITY_SCALE, density.fontScale),
+        ) { CouchSubsMaterial(content) }
+    } else CouchSubsMaterial(content)
+}
+
+@Composable
+private fun CouchSubsMaterial(content: @Composable () -> Unit) {
     val c = Tokens.Color
     MaterialTheme(
         colorScheme = darkColorScheme(
@@ -317,6 +341,10 @@ fun ScreenScaffold(
     scroll: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    if (isTv()) {
+        TvScaffold(top, bottom, scroll, content)
+        return
+    }
     ScreenBackground {
         Column(Modifier.fillMaxSize().safeDrawingPadding().padding(Tokens.Space.screen)) {
             if (top != null) {
@@ -333,6 +361,42 @@ fun ScreenScaffold(
                 Spacer(Modifier.height(Tokens.Space.gap))
                 Column(verticalArrangement = Arrangement.spacedBy(Tokens.Space.gap), horizontalAlignment = Alignment.CenterHorizontally, content = bottom)
             }
+        }
+    }
+}
+
+/**
+ * TV düzeni (IkarosExe fork'u; Google TV ayar ekranları örnek alındı): solda başlık ve ana düğmeler (kumandayla ilk
+ * odaklanan yer), sağda kaydırılan içerik. Kenarlarda TV'nin güvenli alanı (yatay 48, dikey 27 dp) bırakılır.
+ */
+@Composable
+private fun TvScaffold(
+    top: (@Composable () -> Unit)?,
+    bottom: (@Composable ColumnScope.() -> Unit)?,
+    scroll: Boolean,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    ScreenBackground {
+        Row(
+            Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 27.dp),
+            horizontalArrangement = Arrangement.spacedBy(40.dp),
+        ) {
+            Column(Modifier.weight(0.34f).fillMaxSize(), verticalArrangement = Arrangement.spacedBy(Tokens.Space.gap)) {
+                top?.invoke()
+                Spacer(Modifier.weight(1f))
+                if (bottom != null) Column(
+                    Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(Tokens.Space.gap),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    content = bottom,
+                )
+            }
+            val state = rememberScrollState()
+            Column(
+                Modifier.weight(0.66f).fillMaxSize().let { if (scroll) it.verticalScroll(state) else it },
+                verticalArrangement = Arrangement.spacedBy(Tokens.Space.gap),
+                content = content,
+            )
         }
     }
 }

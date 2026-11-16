@@ -399,4 +399,7 @@
     <string name="main_this_tv_waiting">Bu TV</string>
     <string name="overlay_starting_toast">Altyazı katmanı açılıyor…</string>
     <string name="overlay_failed_toast">Altyazı katmanı açılamadı (%1$s)</string>
+    <string name="settings_hdmi">PS5\'in HDMI girişi</string>
+    <string name="settings_hdmi_auto">Otomatik</string>
+    <string name="settings_hdmi_note">Çeviri başlayınca TV bu girişe geçer ve altyazıyı onun üstünde gösterir. Değişiklik, çeviri yeniden başlatılınca geçerli olur.</string>
 </resources>

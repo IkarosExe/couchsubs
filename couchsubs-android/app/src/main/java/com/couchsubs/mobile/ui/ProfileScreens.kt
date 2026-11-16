@@ -221,6 +221,18 @@ fun SettingsScreen(onBack: () -> Unit, onPacks: () -> Unit, onTarget: () -> Unit
             }
             RowItem(stringResource(R.string.settings_screen_on)) { Switch(screenOn, { screenOn = it; settings.keepScreenOn = it }) }
         }
+        // TV'de PS5'in HDMI girişi (IkarosExe fork'u): çeviri başlayınca TV bu girişe geçer, altyazı onun üstünde görünür.
+        if (isTv()) {
+            var hdmi by remember { mutableStateOf(settings.tvHdmiPort) }
+            Tile(Modifier.fillMaxWidth()) {
+                TileLabel(stringResource(R.string.settings_hdmi))
+                Segmented(listOf(stringResource(R.string.settings_hdmi_auto), "HDMI 1", "HDMI 2", "HDMI 3", "HDMI 4"), hdmi) {
+                    hdmi = it
+                    settings.tvHdmiPort = it
+                }
+                Text(stringResource(R.string.settings_hdmi_note), style = Tokens.Type.caption, color = Tokens.Color.secondary)
+            }
+        }
         // Altyazı alanı ve ek alanlar (iPhone ile aynı sırada: görünümden sonra).
         AreaTile()
         ExtraAreasTile()

@@ -137,6 +137,11 @@ class AppSettings(context: Context) {
         get() = prefs.getBoolean("keepScreenOn", true)
         set(value) = prefs.edit().putBoolean("keepScreenOn", value).apply()
 
+    /** TV'de (IkarosExe fork'u) PS5'in bağlı olduğu HDMI girişi; 0: otomatik (bağlı tek giriş, bulunamazsa 1). */
+    var tvHdmiPort: Int
+        get() = prefs.getInt("tvHdmiPort", 0)
+        set(value) = prefs.edit().putInt("tvHdmiPort", value.coerceIn(0, 4)).apply()
+
     /** Telefon ekranındaki altyazının yazı boyu (sp). */
     var phoneTextSize: Int
         get() = prefs.getInt("phoneTextSize", 34)

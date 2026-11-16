@@ -498,7 +498,8 @@ class TranslationService : Service() {
                 Log.i(TAG, "TV katmanı açılıyor (127.0.0.1:$serverPort)")
                 Toast.makeText(this, R.string.overlay_starting_toast, Toast.LENGTH_SHORT).show()
                 try {
-                    OverlayService.start(this, "{\"server\":\"http://127.0.0.1:$serverPort\"}")
+                    val hdmi = settings.tvHdmiPort.takeIf { it in 1..4 }?.let { ",\"hdmi\":$it" } ?: ""
+                OverlayService.start(this, "{\"server\":\"http://127.0.0.1:$serverPort\"$hdmi}")
                 } catch (error: RuntimeException) {
                     Log.e(TAG, "TV katmanı açılamadı", error)
                     Toast.makeText(this, getString(R.string.overlay_failed_toast, error.javaClass.simpleName), Toast.LENGTH_LONG).show()

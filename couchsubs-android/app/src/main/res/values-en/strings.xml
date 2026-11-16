@@ -391,4 +391,7 @@
     <string name="main_this_tv_waiting">This TV</string>
     <string name="overlay_starting_toast">Opening the subtitle overlay…</string>
     <string name="overlay_failed_toast">Couldn\'t open the subtitle overlay (%1$s)</string>
+    <string name="settings_hdmi">PS5 HDMI input</string>
+    <string name="settings_hdmi_auto">Automatic</string>
+    <string name="settings_hdmi_note">When translation starts the TV switches to this input and shows subtitles over it. Takes effect when translation is restarted.</string>
 </resources>
