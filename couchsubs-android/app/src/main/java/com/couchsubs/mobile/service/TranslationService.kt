@@ -267,7 +267,9 @@ class TranslationService : Service() {
         }
         Backend.breadcrumb("çeviri: paketler ${packTitles?.size ?: "yok"}")
         readers.clear()
-        parallelReads = if (isTvDevice()) 2 else 1
+        // TV'de iki paralel okuma denendi (2026-11-16): yazılım çözücüyle 4 çekirdek boğuldu, OCR 1 sn'den 2,6 sn'ye,
+        // çeviri 0,4 sn'den 10 sn'ye çıktı. Tek okuma.
+        parallelReads = 1
         repeat(parallelReads) { readers.add(SubtitleReader(cropToText = isTvDevice())) }
         lastProcessedAt = 0L
         pipeline =SubtitlePipeline(translator, subtitleServer).apply {
