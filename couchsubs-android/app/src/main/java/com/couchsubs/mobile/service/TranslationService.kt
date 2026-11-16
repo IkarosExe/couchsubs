@@ -304,7 +304,9 @@ class TranslationService : Service() {
             onPairShown = { pair ->
                 Measure.line(pair)
                 LiveState.shown(pair, pair.packId?.let { packTitles?.get(it) ?: it })
-                if (replacement == null) PlayedGame.noteLine(pair.origin == "paket", library)
+                // Paketler açılırken kütüphanenin kilidi tutuluyor: burada beklemek çeviri hattını paketler bitene
+                // kadar (TV'de 3 dk) durduruyordu; ilk satırdan sonra hiçbir altyazı gösterilmedi (ölçüm, 2026-11-16).
+                if (replacement == null && packTitles != null) PlayedGame.noteLine(pair.origin == "paket", library)
                 Services.addToHistory(pair.source, pair.translation,
                     if (pair.origin == "paket") com.couchsubs.mobile.core.SubtitleHistory.PACK else com.couchsubs.mobile.core.SubtitleHistory.ENGINE)
                 // Paket başına oturumda bir kez (her satırda olay göndermeyelim); toplam sayı oturum sonunda gider.
